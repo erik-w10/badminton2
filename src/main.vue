@@ -1,10 +1,9 @@
 <template>
-<!-- code 128 for barcodes. -->
 <div class="main">
     <div class="grid content">
         <div class="participants-section">
             <h4 class="title">Aangemelde spelers</h4>
-            <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant">
+            <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant" :tabindex="mainAllowFocus">
             <div class="participants">
                 <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove">
@@ -32,7 +31,7 @@
         <div class="courts-section">
             <div class="bar" :alarm="nfcAlarm">
                 <div class="buttons">
-                    <button class="button is-primary" @click="togglePause()" v-html="paused ? 'Start rotatie': 'Pauzeer'"></button>
+                    <button class="button is-primary" @click="togglePause()" v-html="paused ? 'Start rotatie': 'Pauzeer'" :tabindex="mainAllowFocus"></button>
                 </div>
                 <div id="nfc-error" :alarm="nfcAlarm">NFC error</div>
                 <div id="timer-status">
@@ -126,7 +125,7 @@
                 <section class="modal-card-body">
                     <div class="list">
                             <div style="overflow:hidden" class="list-item" v-bind:key="participant.speelNummer" v-for="participant in players">
-                                <b>{{participant.name}}</b>({{participant.speelNummer}})
+                                <b>{{participant.name}}</b> ({{participant.speelNummer}})
                             <span @click="deleteParticipant(participant)" style="float: right" class="button is-danger">verwijder</span>
                             </div>
                     </div>
@@ -238,8 +237,11 @@
     computed: {
         timerStatus() {
             return (this.timerCounter > 0) ? `${this.timerCounter}` : "-";
+        },
+        // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
+        mainAllowFocus() {
+            return (this.showAddParticipant || this.showParticipantList) ? -1 : 0;
         }
-
     },
 
     // all the applications' functions.
@@ -360,14 +362,42 @@
             let xl = {};
             for(let l in exportLabels) { xl[l] = l; xl[exportLabels[l]] = l; }
             let out = []
-            inp.forEach( e => {
+            let warnings = []
+            let keyMap = {}
+            let ignoredFields = {}
+            let noPlayerCount = 0
+            inp.forEach( (e, idx) => {
                 let o = {};
-                for (let field in e) {
+                for (let fld in e) {
+                    let field = fld.trim()
                     if (xl[field] !== undefined) o[xl[field]] = e[field]
-                    else console.log(`Ignoring field ${field} '${e[field]}'`)
+                    else if (ignoredFields[field] === undefined) {
+                        console.log(`Ignoring field '${field}'`)
+                        ignoredFields[field] = true;
+                    }
                 }
-                out.push(o)
+                if (!o.speelNummer) {
+                    ++noPlayerCount;
+                }
+                else {
+                    if (keyMap[o.speelNummer] !== undefined) {
+                        warnings.push(`Regel ${idx}: DUPLICAAT (${o.name}) ${o.speelNummer} = '${keyMap[o.speelNummer]}'`)
+                    }
+                    else {
+                        if (o.name.trim() !== "")
+                        {
+                            if (!"vmg".includes(o.gender)) o.gender = 'g'
+                            let rank = Number(o.ranking)
+                            if (!Number.isInteger(rank) || (rank < 1) || (rank > 3)) rank = 0
+                            o.ranking = rank
+                            out.push(o)
+                            keyMap[o.speelNummer] = o.name;
+                        }
+                    }
+                }
             })
+            if (noPlayerCount) warnings.push(`${noPlayerCount} regels bevatten geen spelernummer`)
+            if (warnings.length) alert(warnings.join('\n'))
             return out
         },
 
@@ -439,9 +469,9 @@
                 }
                 else {
                     this.changeParticipantStatus(participant);
+                    this.markStateChange()
                 }
             }
-            this.markStateChange()
         },
 
         // permanently deletes a player from the application
@@ -540,6 +570,7 @@
             classes.push(group ? "list-item-players" : "on-court-players");
             if (par.gender == 'm') classes.push('male')
             if (par.gender == 'v') classes.push('female')
+            if (par.gender == 'g') classes.push('nomail')
             if (!par.participating) classes.push('gone')
             else if (par.paused) classes.push('paused')
             return classes.join(' ')
@@ -675,16 +706,22 @@
         grid-gap: 15px;
     }
 
+    /*
     .list-item-players:hover {
         background: #209cee;
     }
+    */
 
     .male {
-        background: #80cee1 !important;
+        background: #80cee1;
     }
 
     .female {
-        background: #fbccd1 !important;
+        background: #fbccd1;
+    }
+
+    .nomail {
+        background: #B0C0B0;
     }
 
     .number {

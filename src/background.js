@@ -133,7 +133,7 @@ function exportPlayers(event, jsonText)
     let csvFile = ['"Naam","Speler nummer","Gender","Ranking"'];
     for(const p of players)
     {
-        csvFile.push(`"${p.name || ""}",${p.speelNummer || 0},"${p.gender || ""}",${p.ranking || 1}`)
+        csvFile.push(`"${p.name || ""}",${p.speelNummer || 0},"${p.gender || ""}",${p.ranking || 0}`)
     }
     fs.writeFile('players_export.csv', csvFile.join('\n') + '\n', 'utf8', () =>{
         console.log(`Wrote "players_export.csv", ${csvFile.length} lines`);
@@ -173,9 +173,9 @@ let handleApduCmdResponse = (err, response) => {
         return;
     }
 
-    // Device sends UID bytes LSB first
+    // Device sends UID bytes LSB first.  We convert this to upper-case hex string as-is (numerically reversed).
     // strip out the status code (the rest is UID)
-    const uid = response.slice(0, -2).reverse().toString('hex');
+    const uid = response.slice(0, -2).toString('hex').toUpperCase();
 
     nfcCardHandler && nfcCardHandler(uid);
     console.log('Card UID is', uid);
