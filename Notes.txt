@@ -1,6 +1,7 @@
 URLS
 VUE tutorial https://vuejs.org/tutorial/#step-1
 VUE draggable next https://github.com/SortableJS/vue.draggable.next
+Get UID with only pcsclite  https://github.com/santigimeno/node-pcsclite/issues/76
 
 
 
@@ -19,7 +20,7 @@ Picked latest version.  Development server can started with:
     npm run electron:serve
 
 => Runs browser in debug view, toggle with ctr-shift-I (or menu)
-Krijg wel foutmelding (het schijnt dat dit eigenlij niet werkt in een VM):
+Krijg wel foutmelding (het schijnt dat dit eigenlijk niet werkt in een VM):
 
     libva error: vaGetDriverNameByIndex() failed with unknown libva error, driver_name = (null)
  
@@ -62,3 +63,9 @@ In pakcage.json deleted     "vuedraggable": "^2.24.3" (VUE 2.0 only)
 
 => Some output on HTML screen (but errors in draggable)
 Will read draggalbe@next docs... (ruuugggh!)
+
+Many logic changes to get closer to the intended use of draggable@next
+
+sudo apt-get install libpcsclite1 libpcsclite-dev
+sudo apt-get install pcscd
+

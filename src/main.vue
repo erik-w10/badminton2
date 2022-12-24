@@ -6,9 +6,10 @@
             <h4 class="title">Aangemelde spelers</h4>
             <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant">
             <div class="participants">
-                <draggable :list="waitingPlayers" group="participants" itemKey="speelNummer">
+                <draggable :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                    @start="onDragStart" @end="onDragEnd">
                     <template #item="{ element }">
-                        <div :class=male_female(element)>
+                        <div :class=player_class(element)>
                             {{element.name}}
                         </div>
                     </template>
@@ -42,9 +43,9 @@
             <!-- Note if you don't use the name 'element' then it won't work -->
             <div class="paused-section">
                 <h4 class="title">Spelers in pauze</h4>
-                <draggable :list="pausedPlayers" group="participants" itemKey="speelNummer">
+                <draggable :list="pausedPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost' @start="onDragStart" @end="onDragEnd">
                     <template #item="{ element }">
-                        <div :class=male_female(element)>
+                        <div :class=player_class(element)>
                             {{element.name}}
                         </div>
                     </template>
@@ -82,9 +83,10 @@
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
                     <div class="list" style="min-height: 210px">
-                        <draggable v-model="court.players" itemKey="speelNummer" v-if="!court.paused">
+                        <draggable :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                        :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" v-if="!court.paused">
                             <template #item="{ element }">
-                                <div :class="{'male': element.gender == 'm', 'female': element.gender == 'v'}">
+                                <div :class=player_class(element) @click="checkoutPlayer(element, court)">
                                     {{element.name}}
                                 </div>
                             </template>
@@ -162,10 +164,10 @@
                 </section>
                 <footer class="modal-card-foot">
                     <button @click="addParticipant" class="button is-success">Speler toevoegen</button>
-                    <button @click="showAddParticipant = false" class="button">Cancel</button>""
+                    <button @click="hideAddParticipant()" class="button">Cancel</button>
                 </footer>
             </div>
-            <button @click="showAddParticipant = false" class="modal-close is-large" aria-label="close"></button>
+            <button @click="hideAddParticipant()" class="modal-close is-large" aria-label="close"></button>
         </div>
 
          <div class="modal" v-bind:class="{'is-active': showParticipantList}">
@@ -186,7 +188,7 @@
                 </section>
                 
             </div>
-            <button @click="showParticipantList = false" class="modal-close is-large" aria-label="close"></button>
+            <button @click="hideParticipantList()" class="modal-close is-large" aria-label="close"></button>
         </div>
 
     </div>    
@@ -194,14 +196,7 @@
 </template>
 
 <script>
-    
-    // drag library for dragging items
     import draggable from 'vuedraggable'
-    // initialises menu object
-    //import {Menu} from 'vue-electron'
-
-    const electron = require('electron');
-
     import xlsxParser from 'xlsx-parse-json';
     
     // import { NFC } from 'nfc-pcsc';
@@ -210,14 +205,6 @@
     const fileDialog = require('file-dialog');
 
     // const nfc = new NFC();
-
-    // for usage of dialog boxes
-
-    //const Dialog = require('dialogs');
-    //const dialog = Dialog();
-    
-    // for usage of filesystem. (for exporting)
-    const fs = require('fs');
 
     const playerTemplate = {
         name: "",
@@ -249,102 +236,16 @@
         } 
         this.players = JSON.parse(localStorage.getItem('participants'));
         this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; } )
+        window.electronIpc.onPlayerAdmin(() => { 
+            this.showParticipantList = true
+            this.stopTimer()
+        });
 
-        console.log(`type of electron is '${typeof(electron)}'`);
-
-        // EPW TODO find out why this fails 'remote' is gone?
-        // bind scope 
-        //let that = this;
-        // activate menu bar
-        // var menu = this.$electron.remote.Menu.buildFromTemplate([
-        //     {
-        //         label: 'Menu',
-        //         submenu: [
-        //             {
-        //                 label:'Spelersbeheer',
-        //                 click() {
-        //                     that.showParticipantList = true;
-        //                 }
-        //             },
-        //         ]
-        //     }
-        // ])
-        // this.$electron.remote.Menu.setApplicationMenu(menu); 
-
-        // keep focus on the barcode input
-        setInterval(() => {
-            if (!this.showAddParticipant && !this.showParticipantList) {
-                document.getElementById('barcode').focus()
-            }
-        }, 2000);
-
-        // sets the rotation
-        setInterval( () => {
-            if(!this.paused) {
-                this.assignParticipants();
-            }
-        }, 2500 )
         
-
-        // // where all the nfc magic should happen...
-        // nfc.on('reader', reader => {
-        //     console.log(`${reader.reader}`)
-        //     console.log(`${reader.reader.name}  device attached`);
-
-        //     // enable when you want to auto-process ISO 14443-4 tags (standard=TAG_ISO_14443_4)
-        //     // when an ISO 14443-4 is detected, SELECT FILE command with the AID is issued
-        //     // the response is available as card.data in the card event
-        //     // you can set reader.aid to:
-        //     // 1. a HEX string (which will be parsed automatically to Buffer)
-        //     reader.aid = 'F222222222';
-        //     // 2. an instance of Buffer containing the AID bytes
-        //     // reader.aid = Buffer.from('F222222222', 'hex');
-        //     // 3. a function which must return an instance of a Buffer when invoked with card object (containing standard and atr)
-        //     //    the function may generate AIDs dynamically based on the detected card
-        //     // reader.aid = ({ standard, atr }) => {
-        //     //
-        //     // 	return Buffer.from('F222222222', 'hex');
-        //     //
-        //     // };
-
-        //     reader.on('card', card => {
-
-        //         // card is object containing following data
-        //         // [always] String type: TAG_ISO_14443_3 (standard nfc tags like MIFARE) or TAG_ISO_14443_4 (Android HCE and others)
-        //         // [always] String standard: same as type
-        //         // [only TAG_ISO_14443_3] String uid: tag uid
-        //         // [only TAG_ISO_14443_4] Buffer data: raw data from select APDU response
-
-        //         // this should show the nfc uid... card would be the client data
-        //         console.log(`${reader.reader.name}  card detected`, card);
-
-        //         // if so, we could make use of the existing 'barcode'system by doing:
-                
-        //         //this.barcode = card.uid  I guess?
-        //         //newParticipant()   // this triggers the participant checkin
-                
-                
-
-        //     });
-
-        //     reader.on('card.off', card => {
-        //         console.log(`${reader.reader.name}  card removed`, card);
-        //     });
-
-        //     reader.on('error', err => {
-        //         console.log(`${reader.reader.name}  an error occurred`, err);
-        //     });
-
-        //     reader.on('end', () => {
-        //         console.log(`${reader.reader.name}  device removed`);
-        //     });
-
-        // });
-
-
         for (let i = 0; i < this.amountOfCourts; i++) {
             this.addCourt();
         }  
+        this.startTimer()
     },
 
     data() {
@@ -364,13 +265,38 @@
             // whether to show the modals
             showAddParticipant: false,
             showParticipantList: false,
-            newPlayer: Object.assign({}, playerTemplate)
+            newPlayer: Object.assign({}, playerTemplate),
+
+            timerId: null,
         }
 
     },
 
     // all the applications' functions.
     methods: {
+
+        // Block move from court unless rotation is paused
+        ifRotationPaused() {
+            return this.paused
+        },
+
+        startTimer() {
+            if (this.timerId !== null) clearInterval(this.timerId)
+            this.timerId = setInterval( () => {
+                // sets the rotation
+                if (!this.paused) {
+                    this.assignParticipants();
+                }
+                if (this.showAddParticipant || this.showParticipantList) console.log("BUG!")
+                else document.getElementById('barcode').focus()
+            }, 2500 )
+        },
+
+        stopTimer() {
+            if (this.timerId !== null) return
+            clearInterval(this.timerId)
+            this.timerId = null;
+        },
 
         addCourt() {
             let court = {
@@ -386,8 +312,13 @@
         clearCourt(c) {
             c.players.forEach(p => {
                 if (p.participating) {
-                    if (p.paused) this.pausedPlayers.push(p);
-                    else          this.waitingPlayers.push(p);
+                    if (p.paused) {
+                        p.paused = false;
+                        this.pausedPlayers.push(p);
+                    }
+                    else {
+                        this.waitingPlayers.push(p);
+                    }
                 }
                 p.onCourt = 0;
             })
@@ -413,10 +344,9 @@
         },
 
         exportPlayers() {
-            let players = localStorage.getItem('participants');
-            fs.writeFile('export.json', players, 'utf8', () =>{
-                console.log('done writing');
-            });
+            let playersJson = localStorage.getItem('participants');
+            console.log(`Debug: exporting players as JSON text of ${playersJson.length} characters`);
+            window.electronIpc.exportPlayers(playersJson)
         },
 
         importPlayers() {
@@ -426,7 +356,6 @@
                     .onFileSelection(files[0])
                     .then(data => {
                         this.players = Object.values(data)[0];
-                        // EPW TODO why was this [0]:  localStorage.setItem('participants', JSON.stringify(this.participants[0]));
                         this.playersToLocalStorage();
                     });
                 });
@@ -436,10 +365,7 @@
         checkoutPlayer(player, court) {
             let idx = court.players.findIndex( (par => par.speelNummer === player.speelNummer ));
             if (idx < 0) return;        // Should not occur (log?)
-
-            let behindQueue = court.players.splice( idx, 1 ) ;
-            behindQueue[0].onCourt = 0;   
-            this.waitingPlayers.push(behindQueue[0]);
+            court.players[idx].paused = !court.players[idx].paused
         },
 
         // fills the courts with participants 
@@ -480,6 +406,7 @@
                 if (!participant) {
                     this.newPlayer.speelNummer = this.barcode;
                     this.showAddParticipant = true;
+                    this.stopTimer()
                 }
                 else {
                     this.changeParticipantStatus(participant);
@@ -492,8 +419,8 @@
             let confirm = window.confirm("Weet je zeker dat je deze speler wilt verwijderen?");
             if (confirm) {
                 let filter = el => el.speelNummer !== participant.speelNummer;
-                this.waitingPlayers.filter(filter);
-                this.pausedPlayers.filter(filter);
+                this.waitingPlayers = this.waitingPlayers.filter(filter);
+                this.pausedPlayers = this.pausedPlayers.filter(filter);
                 this.courts.forEach( c => c.players = c.players.filter(filter) );
                 this.players = this.players.filter(filter);
                 this.playersToLocalStorage();
@@ -511,13 +438,13 @@
             if (!p.participating)
             {
                 let filter = el => el.speelNummer !== participant.speelNummer;
-                this.waitingPlayers.filter(filter);
-                this.pausedPlayers.filter(filter);
+                this.waitingPlayers = this.waitingPlayers.filter(filter);
+                this.pausedPlayers = this.pausedPlayers.filter(filter);
                 // If onCourt then player is left on the secreen until the court is cleared
             }
             else
             {
-                this.waitingPlayers.push(p);
+                if (!p.onCourt) this.waitingPlayers.push(p);
             }
 
             this.barcode = null;        // EPW TODO move?
@@ -543,20 +470,20 @@
             this.waitingPlayers.push(participant);
         },
 
-        // function call when player gets dragged to paused
-        onActiveEnd(evt) {
-            evt.preventDefault();
-            if (evt.to.classList[0] == 'pausedPlayers') {
-                this.pausePlayer(this.waitingPlayers[evt.item.attributes[0].nodeValue]);
-            } 
+        onDragStart() {
+            this.stopTimer()
         },
 
-        // function call when player gets dragges to active
-        onPauseEnd(evt) {
-            evt.preventDefault();
-            if (evt.to.classList[0] == 'activeParticipants') { 
-                this.resumePlayer(this.pausedPlayers[evt.item.attributes[0].nodeValue]); 
-            } 
+        onDragEnd() {
+            this.startTimer()
+        },
+
+        hideAddParticipant() {
+            this.showAddParticipant = false; 
+            this.barcode = null;
+            // New object entity with default values (EPW TODO dare we use "new"?)
+            this.newPlayer = Object.assign({}, playerTemplate)
+            this.startTimer()
         },
 
         // adds new player from the new player modal.
@@ -569,19 +496,21 @@
             this.players.push(this.newPlayer);
             this.playersToLocalStorage();
             this.waitingPlayers.push(this.newPlayer);
-            this.showAddParticipant = false; 
-
-            this.barcode = null;
-            
-            // New object entity with default values (EPW TODO dare we use "new"?)
-            this.newPlayer = Object.assign({}, playerTemplate);
+            this.hideAddParticipant()
         },
 
-        male_female(par) {
-            let classes = [];
-            if (par.gender == 'm') classes.push('male');
-            if (par.gender == 'v') classes.push('female');
-            return classes.join(' ');
+        player_class(par) {
+            let classes = ["list-item"]
+            if (par.gender == 'm') classes.push('male')
+            if (par.gender == 'v') classes.push('female')
+            if (!par.participating) classes.push('gone')
+            else if (par.paused) classes.push('paused')
+            return classes.join(' ')
+        },
+
+        hideParticipantList() {
+            this.showParticipantList = false
+            this.startTimer()
         }
     }
 }
@@ -683,6 +612,19 @@ background: linear-gradient(to top, #FFFFFF, #ECE9E6); /* W3C, IE 10+/ Edge, Fir
     .participants {
         border-top: 1px solid black;
         border-bottom: 1px solid black;
+    }
+
+    .list-item.gone {
+        text-decoration: line-through;
+    }
+
+    .list-item.paused {
+        font-style: italic;
+        color: gray;
+    }
+
+    .ghost {
+        opacity: 0.5;
     }
 
 

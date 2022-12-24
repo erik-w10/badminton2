@@ -3,7 +3,9 @@ module.exports = defineConfig({
   transpileDependencies: true,
   pluginOptions: {
     electronBuilder: {
-      nodeIntegration: true
+      preload: 'src/preload.js',
+      nodeIntegration: false,
+      externals: ['pcsclite']
     }
   }
 });
