@@ -53,7 +53,7 @@
                 <div  v-bind:key="court.baan" class="court" v-for="court in courts">
                     <div style="display: flex; justify-content: space-between">
                         <div class="number">{{court.baan}}</div>
-                        <div @click="court.isDouble =! court.isDouble" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
+                        <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
                     <div class="list" style="min-height: 210px">
@@ -322,6 +322,10 @@
         togglePause() {
             this.paused = !this.paused
             this.markStateChange()
+        },
+
+        toggleDouble(court) {
+            if (this.paused) court.isDouble = !court.isDouble;
         },
 
         // Block move from court unless rotation is paused
