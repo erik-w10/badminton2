@@ -619,7 +619,7 @@
             this.waitingPlayers.forEach (p => p.onCourt = 0)
             this.pausedPlayers.forEach  (p => p.onCourt = 0)
             this.courts.forEach((c, idx) => {
-                c.players.forEach(p => p.onCourt = idx)
+                c.players.forEach(p => p.onCourt = idx+1)
             })
             this.markStateChange()
         },
