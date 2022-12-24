@@ -135,6 +135,39 @@
             <button @click="hideParticipantList()" class="modal-close is-large" aria-label="close"></button>
         </div>
 
+        <div class="modal" :class="{'is-active': alertData.show}">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <p class="modal-card-title">{{alertData.title}}</p>
+                    <button @click="alertData.show=false" class="delete" aria-label="close"></button>
+                </header>
+                <section class="modal-card-body keep-ws">
+                    {{alertData.msg}}
+                </section>
+                <footer class="modal-card-foot">
+                    <button @click="alertData.show=false" class="button">OK</button>
+                </footer>
+            </div>
+        </div>
+
+        <div class="modal" :class="{'is-active': confirmData.show}">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <p class="modal-card-title">{{confirmData.title}}</p>
+                    <button @click="confirmData.action(-1)" class="delete" aria-label="close"></button>
+                </header>
+                <section class="modal-card-body">
+                    {{confirmData.msg}}
+                </section>
+                <footer class="modal-card-foot">
+                    <button @click="confirmData.action(1)" class="button">Ja</button>
+                    <button @click="confirmData.action(0)" class="button">Nee</button>
+                </footer>
+            </div>
+        </div>
+
     </div>
 </div>
 </template>
@@ -188,8 +221,12 @@
             this.stopTimer()
         })
         window.electronIpc.onRestoreSession(() => {
-            if (confirm("Status van vorige sessie herladen ?")) this.restoreOldSessionState()
-            this.startTimer()
+            this.doConfirm("Herladen", "Status van vorige sessie herladen ?", (result) => {
+                if (result === 1) {
+                    this.restoreOldSessionState()
+                    this.startTimer()
+                }
+            })
         })
         window.electronIpc.onNfcCard((_event, uid) => {
             this.barcode = uid
@@ -232,6 +269,9 @@
             timerCounter: 5,
             nfcAlarm: "N",
             nfcAlarmTimerId: null,
+
+            alertData:   { show: false, title: "", msg: "" },
+            confirmData: { show: false, title: "", msg: "", action: () => {} },
         }
     },
     computed: {
@@ -246,10 +286,20 @@
 
     // all the applications' functions.
     methods: {
+        doAlert(title, msg) {
+            this.alertData = { show: true, title: title, msg: msg }
+        },
+
+        doConfirm(title, msg, actionIn) {
+            this.confirmData = { show: true, title: title, msg: msg, action: (result) => {
+                this.confirmData = false
+                actionIn(result)
+            }}
+        },
 
         togglePause() {
             this.paused = !this.paused
-            this.markStateChange();
+            this.markStateChange()
         },
 
         // Block move from court unless rotation is paused
@@ -397,7 +447,7 @@
                 }
             })
             if (noPlayerCount) warnings.push(`${noPlayerCount} regels bevatten geen spelernummer`)
-            if (warnings.length) alert(warnings.join('\n'))
+            if (warnings.length) this.doAlert("Meldingen", warnings.join('\n'))
             return out
         },
 
@@ -476,15 +526,16 @@
 
         // permanently deletes a player from the application
         deleteParticipant(participant) {
-            let confirm = window.confirm("Weet je zeker dat je deze speler wilt verwijderen?");
-            if (confirm) {
-                let filter = el => el.speelNummer !== participant.speelNummer;
-                this.waitingPlayers = this.waitingPlayers.filter(filter);
-                this.pausedPlayers = this.pausedPlayers.filter(filter);
-                this.courts.forEach( c => c.players = c.players.filter(filter) );
-                this.players = this.players.filter(filter);
-                this.playersToLocalStorage();
-            }
+            this.doConfirm("", "Weet je zeker dat je deze speler wilt verwijderen?", (result) => {
+                if (result === 1) {
+                    let filter = el => el.speelNummer !== participant.speelNummer;
+                    this.waitingPlayers = this.waitingPlayers.filter(filter);
+                    this.pausedPlayers = this.pausedPlayers.filter(filter);
+                    this.courts.forEach( c => c.players = c.players.filter(filter) );
+                    this.players = this.players.filter(filter);
+                    this.playersToLocalStorage();
+                }
+            })
         },
 
         // checks in or checks out player
@@ -513,13 +564,16 @@
 
         // Pause a player in the waitingPlayers list
         pausePlayer(player) {
-            if ( !confirm(`${player.name} pauze nemen?`, 'Pauzeren') ) return
-            let id = player.speelNummer
-            let idx = this.waitingPlayers.findIndex(e => e.speelNummer === id)
-            if (idx < 0) return
-            this.waitingPlayers.splice(idx, 1)
-            this.pausedPlayers.push(player)
-            this.markStateChange()
+            this.doConfirm('Pauzeren', `${player.name} pauze nemen?`, (result) => {
+                if (result == 1) {
+                    let id = player.speelNummer
+                    let idx = this.waitingPlayers.findIndex(e => e.speelNummer === id)
+                    if (idx < 0) return
+                    this.waitingPlayers.splice(idx, 1)
+                    this.pausedPlayers.push(player)
+                    this.markStateChange()
+                }
+            })
         },
 
         // Resume a player in the pausedPlayers list
@@ -663,7 +717,7 @@
             }
             catch (e)
             {
-                alert(`De vorige sessie kon niet worden herladen\n'${e}'`)
+                this.doAlert('Probleem', `De vorige sessiestatus kon niet worden hersteld\n'${e}'`)
                 this.resetSessionState()
             }
         }
@@ -807,6 +861,7 @@
         margin: 4px;
         border-radius: 8px;
         background-color: red;
+        color: black;
     }
     #timer-status {
         display: flex;
@@ -817,6 +872,9 @@
     div.buttons {
         display: flex;
         justify-content: space-between;
+    }
+    .keep-ws {
+        white-space: pre-wrap;
     }
 
 </style>

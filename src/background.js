@@ -47,7 +47,7 @@ async function createWindow() {
                     }
                 },
                 {
-                    label:'Restore session',
+                    label:'Herstel sessie',
                     click() {
                         console.log('Restore session click');
                         win.webContents.send('restore-session');
