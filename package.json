@@ -14,8 +14,13 @@
   "main": "background.js",
   "dependencies": {
     "core-js": "^3.8.3",
+    "file-dialog": "^0.0.8",
+    "fs": "^0.0.1-security",
     "nfc-pcsc": "^0.8.1",
-    "vue": "^3.2.13"
+    "path-browserify": "^1.0.1",
+    "vue": "^3.2.13",
+    "vuedraggable": "^4.1.0",
+    "xlsx-parse-json": "^3.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",
