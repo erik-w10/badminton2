@@ -42,6 +42,7 @@
             <div class="bar" :alarm="nfcAlarm">
                 <div class="buttons">
                     <button class="button is-primary" @click="togglePause()" v-html="paused ? 'Start rotatie': 'Pauzeer'" :tabindex="mainAllowFocus"></button>
+                    <button class="button is-primary" @click="doUndo()" :disabled="disableUndo" :tabindex="mainAllowFocus">Herstel</button>
                 </div>
                 <div id="nfc-error" :alarm="nfcAlarm">NFC error</div>
                 <div id="timer-status">
@@ -194,6 +195,8 @@
 
     // for usage of selecting something from the file system.
     const fileDialog = require('file-dialog');
+    const makeUndoPoint = 1;
+    const keepUndoPoint = 2;
 
     const playerTemplate = {
         name: "",
@@ -295,6 +298,10 @@
 
             alertData:   { show: false, title: "", msg: "" },
             confirmData: { show: false, title: "", msg: "", action: () => {} },
+
+            disableUndo: true,
+            stateString: undefined,
+            undoString:  undefined,
         }
     },
     computed: {
@@ -380,11 +387,11 @@
             }, 3000)
         },
 
-        markStateChange() {
+        markStateChange(undoOption) {
             if (!this.showAddParticipant && !this.showParticipantList && !this.paused) {
                 this.startTimer()
             }
-            this.updateSessionState()
+            this.updateSessionState(undoOption)
             document.getElementById('barcode').focus()
         },
 
@@ -417,9 +424,14 @@
 
         // checks out a court
         checkout(court) {
-            if (!court.players.length) court.paused = !court.paused
-            this.clearCourt(court)
-            this.markStateChange()
+            if (!court.players.length) {
+                court.paused = !court.paused
+                this.markStateChange()
+            }
+            else {
+                this.clearCourt(court)
+                this.markStateChange(makeUndoPoint)
+            }
         },
 
         playersToLocalStorage() {
@@ -549,7 +561,7 @@
                     }
                 }
             });
-            if (doUpdateState) this.updateSessionState()
+            if (doUpdateState) this.updateSessionState(keepUndoPoint)
         },
 
         participantExists(participant) {
@@ -684,7 +696,7 @@
             this.markStateChange()
         },
 
-        updateSessionState() {
+        updateSessionState(undoOption) {
             let state = {
                 w: [],      // Waiting players
                 p: [],      // Paused players
@@ -699,7 +711,15 @@
                 c.players.forEach(p => record.p.push([p.speelNummer, !p.participating ? 'g' : p.paused ? 'p' : '-']))
                 state.c.push(record)
             })
-            localStorage.setItem('state', JSON.stringify(state))
+            if (undoOption === undefined) {
+                this.disableUndo = true
+            }
+            else if (undoOption == makeUndoPoint) {
+                this.undoString = this.stateString
+                this.disableUndo = false
+            }   // Third option keepUndoPoint -> no action
+            this.stateString = JSON.stringify(state)
+            localStorage.setItem('state', this.stateString)
         },
 
         resetSessionState() {
@@ -713,11 +733,11 @@
             this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; } )
         },
 
-        restoreOldSessionState() {
+        restoreSessionStateTo(stateString) {
             this.resetSessionState()
             try {
                 let usedIds = {};
-                let oldState = JSON.parse(localStorage.getItem('old_state'))
+                let oldState = JSON.parse(stateString)
                 if (!oldState)                      throw new Error("Old state not found");
                 oldState.w.forEach( id => {
                     if (typeof(id) != 'string')     throw new Error("ID type is not 'string'")
@@ -769,6 +789,16 @@
                 this.doAlert('Probleem', `De vorige sessiestatus kon niet worden hersteld\n'${e}'`)
                 this.resetSessionState()
             }
+        },
+
+        restoreOldSessionState() {
+            this.restoreSessionStateTo(localStorage.getItem('old_state'))
+        },
+
+        doUndo() {
+            if (this.disableUndo) return;
+            this.restoreSessionStateTo(this.undoString)
+            this.markStateChange();
         }
     }
 }
