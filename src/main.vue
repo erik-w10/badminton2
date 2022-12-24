@@ -407,7 +407,9 @@
 
         // clears one court
         clearCourt(c) {
-            c.players.forEach(p => {
+            for (let n = c.players.length; n > 0; --n) {
+                let pick = Math.floor(n * Math.random())
+                let p = c.players.splice(pick, 1)[0]
                 if (p.participating) {
                     if (p.paused) {
                         p.paused = false;
@@ -418,7 +420,7 @@
                     }
                 }
                 p.onCourt = 0;
-            })
+            }
             c.players = [];
         },
 
