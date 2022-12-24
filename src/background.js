@@ -212,6 +212,8 @@ pcsc.on('reader', function(reader) {
                     if (err) {
                         console.log("connect error", err);
                         nfcErrorHandler && nfcErrorHandler("NFC connect error")
+                    } else if (protocol === undefined) {
+                        nfcErrorHandler && nfcErrorHandler("NFC connect undefined protocol argument")
                     } else {
                         // console.log('Protocol(', reader.name, '):', protocol);
                         reader.transmit(apduCmdPacket, 12, protocol, handleApduCmdResponse);
