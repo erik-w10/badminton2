@@ -107,7 +107,7 @@
                     </form>
                 </section>
                 <footer class="modal-card-foot">
-                    <button @click="addParticipant" class="button is-success">Speler toevoegen</button>
+                    <button @click="addParticipant" class="button is-success" :disabled="!validNewPlayer">Speler toevoegen</button>
                     <button @click="hideAddParticipant()" class="button">Cancel</button>
                 </footer>
             </div>
@@ -282,6 +282,11 @@
         // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
         mainAllowFocus() {
             return (this.showAddParticipant || this.showParticipantList) ? -1 : 0;
+        },
+        validNewPlayer() {
+            return (this.newPlayer.name.length > 0) && 
+                   (this.newPlayer.gender.length == 1)  && "vmg".includes(this.newPlayer.gender) &&
+                   (this.newPlayer.ranking.length == 1) && "123".includes(this.newPlayer.ranking);
         }
     },
 
