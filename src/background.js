@@ -3,7 +3,6 @@
 import { app, protocol, BrowserWindow, Menu, ipcMain } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
-//import { NFC } from 'nfc-pcsc'
 
 const path = require('path')
 const fs = require('fs')
@@ -17,6 +16,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let nfcCardHandler;
+let nfcErrorHandler;
 
 async function createWindow() {
     // Create the browser window.
@@ -28,13 +28,13 @@ async function createWindow() {
             // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
             nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
             contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
-            
+
             preload: path.join(__dirname, 'preload.js'),
         }
     })
-    
+
     ipcMain.on('export-players', exportPlayers)
-    
+
     const menu = Menu.buildFromTemplate([
         {
             label: 'Menu',
@@ -44,7 +44,13 @@ async function createWindow() {
                     click() {
                         console.log('Spelersbeheer click');
                         win.webContents.send('player-admin');
-                        // => Renderer that.showParticipantList = true;
+                    }
+                },
+                {
+                    label:'Restore session',
+                    click() {
+                        console.log('Restore session click');
+                        win.webContents.send('restore-session');
                     }
                 },
                 {
@@ -57,9 +63,10 @@ async function createWindow() {
         }
     ])
     Menu.setApplicationMenu(menu);
-    nfcCardHandler = (uid) => win.webContents.send('nfc-card', uid)   // Note asuming here there is only ever one window...
-    win.on('close', () => { console.log('Closing main window'); nfcCardHandler = undefined; })
-    
+    nfcCardHandler = (uid) => win.webContents.send('nfc-card', uid)     // Note asuming here there is only ever one window...
+    nfcErrorHandler = (msg) => win.webContents.send('nfc-error', msg)
+    win.on('close', () => { console.log('Closing main window'); nfcCardHandler = undefined; nfcErrorHandler = undefined; })
+
     if (process.env.WEBPACK_DEV_SERVER_URL) {
         // Load the url of the dev server if in development mode
         await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL)
@@ -122,8 +129,8 @@ function exportPlayers(event, jsonText)
         console.log(`Wrote "players_export.json", ${jsonText.length} characters`);
     });
     let players = JSON.parse(jsonText);
-    let csvFile = ['"name","speelNummer","gender","ranking"'];
-    csvFile = ['"Naam","Speler nummer","Gender","Ranking"'];
+    //let csvFile = ['"name","speelNummer","gender","ranking"'];
+    let csvFile = ['"Naam","Speler nummer","Gender","Ranking"'];
     for(const p of players)
     {
         csvFile.push(`"${p.name || ""}",${p.speelNummer || 0},"${p.gender || ""}",${p.ranking || 1}`)
@@ -133,62 +140,8 @@ function exportPlayers(event, jsonText)
     });
 }
 
-// where all the nfc magic should happen...
-// const nfc = new NFC();
-// nfc.on('reader', reader => {
-//     console.log(`${reader.reader}`)
-//     console.log(`${reader.reader.name}  device attached`);
-    
-//     // enable when you want to auto-process ISO 14443-4 tags (standard=TAG_ISO_14443_4)
-//     // when an ISO 14443-4 is detected, SELECT FILE command with the AID is issued
-//     // the response is available as card.data in the card event
-//     // you can set reader.aid to:
-//     // 1. a HEX string (which will be parsed automatically to Buffer)
-//     // reader.aid = 'F222222222';
-//     // 2. an instance of Buffer containing the AID bytes
-//     // reader.aid = Buffer.from('F222222222', 'hex');
-//     // 3. a function which must return an instance of a Buffer when invoked with card object (containing standard and atr)
-//     //    the function may generate AIDs dynamically based on the detected card
-//     // reader.aid = ({ standard, atr }) => {
-//     //
-//     // 	return Buffer.from('F222222222', 'hex');
-//     //
-//     // };
-    
-//     reader.on('card', card => {
-        
-//         // card is object containing following data
-//         // [always] String type: TAG_ISO_14443_3 (standard nfc tags like MIFARE) or TAG_ISO_14443_4 (Android HCE and others)
-//         // [always] String standard: same as type
-//         // [only TAG_ISO_14443_3] String uid: tag uid
-//         // [only TAG_ISO_14443_4] Buffer data: raw data from select APDU response
-        
-//         // this should show the nfc uid... card would be the client data
-//         console.log(`${reader.reader.name}  card detected`, card);
-//         nfcCardHandler && nfcCardHandler(card.uid);
-        
-//         // if so, we could make use of the existing 'barcode'system by doing:
-        
-//         //this.barcode = card.uid  I guess?
-//         //newParticipant()   // this triggers the participant checkin
-//     });
-    
-//     reader.on('card.off', card => {
-//         console.log(`${reader.reader.name}  card removed`, card);
-//     });
-    
-//     reader.on('error', err => {
-//         console.log(`${reader.reader.name}  an error occurred`, err);
-//     });
-    
-//     reader.on('end', () => {
-//         console.log(`${reader.reader.name}  device removed`);
-//     });
-// });
-///////////////////////////////// pcsclite based ///////////////////////////
-
 const pcsc = require('pcsclite')();
-    
+
 // APDU CMD: Get Data
 const apduCmdPacket = new Buffer.from([
     0xff, // Class
@@ -199,26 +152,27 @@ const apduCmdPacket = new Buffer.from([
 ]);
 
 let handleApduCmdResponse = (err, response) => {
-    
+
     if (err) {
         console.log(err);
+        nfcErrorHandler && nfcErrorHandler(err.message || err.toString());
         return;
     }
-    
+
     if (response.length < 2) {
         console.log(`Invalid response length ${response.length}. Expected minimal length was 2 bytes.`);
         return;
     }
-    
+
     // last 2 bytes are the status code
     const statusCode = response.slice(-2).readUInt16BE(0);
-    
+
     // an error occurred
     if (statusCode !== 0x9000) {
         console.log('Could not get card UID.');
         return;
     }
-    
+
     // Device sends UID bytes LSB first
     // strip out the status code (the rest is UID)
     const uid = response.slice(0, -2).reverse().toString('hex');
@@ -256,7 +210,7 @@ pcsc.on('reader', function(reader) {
                         console.log(err);
                     } else {
                         console.log('Protocol(', reader.name, '):', protocol);
-                        reader.transmit(apduCmdPacket, 12, handleApduCmdResponse);
+                        reader.transmit(apduCmdPacket, 12, reader.SCARD_PROTOCOL_RAW, handleApduCmdResponse);
                     }
                 });
             }
