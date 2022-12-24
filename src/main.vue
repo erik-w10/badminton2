@@ -662,8 +662,6 @@
         addParticipant() {
             if (!this.newPlayer.name.length) return
 
-            this.newPlayer.speelNummer = this.barcode;
-
             this.players.push(this.newPlayer);
             this.playersToLocalStorage();
             this.waitingPlayers.push(this.newPlayer);
