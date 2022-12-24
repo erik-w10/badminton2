@@ -6,10 +6,15 @@
             <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant" :tabindex="mainAllowFocus">
             <div class="participants">
                 <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
-                @start="onDragStart" @end="onDragEnd" :move="checkListMove">
+                @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
-                        <div :class="player_class(element, true)" @click="pausePlayer(element)">
+                        <div class="dragClick" :class="player_class(element, true)">
                             {{element.name}}
+                            <div class=clickParts>
+                                <div class="dragHdl"></div>
+                                <div class="clickBtn" @click="pausePlayer(element)"></div>
+                                <div class="dragHdl"></div>
+                            </div>
                         </div>
                     </template>
                 </draggable>
@@ -18,10 +23,15 @@
             <div class="paused-section">
                 <h4 class="title">Spelers in pauze</h4>
                 <draggable class="draggable-list" :list="pausedPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
-                @start="onDragStart" @end="onDragEnd" :move="checkListMove">
+                @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
-                        <div :class="player_class(element, true)" @click="resumePlayer(element)">
+                        <div class="dragClick" :class="player_class(element, true)">
                             {{element.name}}
+                            <div class=clickParts>
+                                <div class="dragHdl"></div>
+                                <div class="clickBtn" @click.stop="resumePlayer(element)"></div>
+                                <div class="dragHdl"></div>
+                            </div>
                         </div>
                     </template>
                 </draggable>
@@ -48,10 +58,15 @@
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
                     <div class="list" style="min-height: 210px">
                         <draggable class="draggable-court" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
-                        :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" v-if="!court.paused">
+                        :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" v-if="!court.paused">
                             <template #item="{ element }">
-                                <div :class="player_class(element, false)" @click="checkoutPlayer(element, court)">
+                                <div class="dragClick" :class="player_class(element, false)">
                                     {{element.name}}
+                                    <div class=clickParts>
+                                        <div class="dragHdl"></div>
+                                        <div class="clickBtn" @click="checkoutPlayer(element, court)"></div>
+                                        <div class="dragHdl"></div>
+                                    </div>
                                 </div>
                             </template>
                         </draggable>
@@ -883,6 +898,24 @@
     }
     .keep-ws {
         white-space: pre-wrap;
+    }
+    .dragClick {
+        position: relative; /* Use as reference for absolute positioning*/
+    }
+    .clickParts {
+        position: absolute; /* Overlap with the entire parent div*/
+        top: 0px;
+        left: 0px;
+        height: 100%;
+        width: 100%;
+        padding: 0px;
+        display: flex;          /* Make child div centered*/
+    }
+    .dragHdl {
+        flex: 1;
+    }
+    .clickBtn {
+        flex: 2;
     }
 
 </style>
