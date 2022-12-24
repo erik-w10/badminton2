@@ -5,7 +5,7 @@
             <h4 class="title">Aangemelde spelers</h4>
             <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant" :tabindex="mainAllowFocus">
             <div class="participants">
-                <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="playerId" ghostClass='ghost'
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
                         <div class="dragClick" :class="playerClass(element, true)">
@@ -22,7 +22,7 @@
             <!-- Note if you don't use the name 'element' then it won't work -->
             <div class="paused-section">
                 <h4 class="title">Spelers in pauze</h4>
-                <draggable class="draggable-list" :list="pausedPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                <draggable class="draggable-list" :list="pausedPlayers" group="participants" itemKey="playerId" ghostClass='ghost'
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
                         <div class="dragClick" :class="playerClass(element, true)">
@@ -52,14 +52,14 @@
             </div>
 
             <div class="courts">
-                <div  v-bind:key="court.baan" class="court" v-for="court in courts">
+                <div  v-bind:key="court.courtNr" class="court" v-for="court in courts">
                     <div style="display: flex; justify-content: space-between">
-                        <div @click="doCancelAnimations" :id="`courtTag_${court.baan}`" class="number">{{court.baan}}</div>
+                        <div @click="doCancelAnimations" :id="`courtTag_${court.courtNr}`" class="number">{{court.courtNr}}</div>
                         <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
                     <div class="list" style="min-height: 13.125rem">
-                        <draggable class="draggable-court" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                        <draggable class="draggable-court" :list="court.players" group="participants" itemKey="playerId" ghostClass='ghost'
                         :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                             <template #item="{ element }">
                                 <div class="dragClick" :class="playerClass(element, false)">
@@ -141,8 +141,8 @@
                 </div>
                 <section class="modal-card-body">
                     <div class="list">
-                            <div style="overflow:hidden" class="list-item" v-bind:key="participant.speelNummer" v-for="participant in players">
-                                <b>{{participant.name}}</b> ({{participant.speelNummer}})
+                            <div style="overflow:hidden" class="list-item" v-bind:key="participant.playerId" v-for="participant in players">
+                                <b>{{participant.name}}</b> ({{participant.playerId}})
                             <span @click="deleteParticipant(participant)" style="float: right" class="button is-danger">verwijder</span>
                             </div>
                     </div>
@@ -240,7 +240,7 @@
 
     const playerTemplate = {
         name: "",
-        speelNummer: null,
+        playerId: null,
         gender: "",
         ranking: "",
         // State (not persisted):
@@ -249,12 +249,17 @@
         onCourt: 0           // 0 => not on any court
     };
 
-    const exportLabels = {
-        name:           "Naam",
-        speelNummer:    "Speler nummer",
-        gender:         "Gender",
-        ranking:        "Ranking"
-    };
+    const labelMap = {
+        "name":             "name",
+        "Naam":             "name",
+        "playerId":         "playerId",
+        "speelNummer":      "playerId",
+        "Speler nummer":    "playerId",
+        "gender":           "gender",
+        "Gender":           "gender",
+        "ranking":          "ranking",
+        "Ranking":          "ranking",
+    }
     function isValidGender(gen) {
         return (typeof(gen) === 'string') && (gen.length == 1) && "vmg".includes(gen);
     }
@@ -321,6 +326,7 @@
             localStorage.setItem('participants', "[]");
         }
         this.players = JSON.parse(localStorage.getItem('participants'));
+        this.players.forEach( p => { if (p.speelNummer !== undefined) { p.playerId = p.speelNummer; delete p.speelNummer; }})
         this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; } )
         window.electronIpc.onPlayerAdmin(() => {
             this.showParticipantList = true
@@ -491,7 +497,7 @@
 
         addCourt() {
             let court = {
-                baan: this.courts.length + 1,
+                courtNr: this.courts.length + 1,
                 isDouble: true,
                 paused: false,
                 players: []
@@ -535,7 +541,7 @@
             this.players.forEach( p => r.push({
                 // Note 'participating', 'paused' and 'onCourt' are left out
                 name:        p.name,
-                speelNummer: p.speelNummer,
+                playerId: p.playerId,
                 gender:      p.gender,
                 ranking:     p.ranking
             }))
@@ -549,8 +555,6 @@
 
         mapImportFields(inp)
         {
-            let xl = {};
-            for(let l in exportLabels) { xl[l] = l; xl[exportLabels[l]] = l; }
             let out = []
             let warnings = []
             let keyMap = {}
@@ -560,18 +564,18 @@
                 let o = {};
                 for (let fld in e) {
                     let field = fld.trim()
-                    if (xl[field] !== undefined) o[xl[field]] = e[field]
+                    if (labelMap[field] !== undefined) o[labelMap[field]] = e[field]
                     else if (ignoredFields[field] === undefined) {
                         console.log(`Ignoring field '${field}'`)
                         ignoredFields[field] = true;
                     }
                 }
-                if (!o.speelNummer) {
+                if (!o.playerId) {
                     ++noPlayerCount;
                 }
                 else {
-                    if (keyMap[o.speelNummer] !== undefined) {
-                        warnings.push(`Regel ${idx}: DUPLICAAT (${o.name}) ${o.speelNummer} = '${keyMap[o.speelNummer]}'`)
+                    if (keyMap[o.playerId] !== undefined) {
+                        warnings.push(`Regel ${idx}: DUPLICAAT (${o.name}) ${o.playerId} = '${keyMap[o.playerId]}'`)
                     }
                     else {
                         if (o.name.trim() !== "")
@@ -579,7 +583,7 @@
                             if (!isValidGender(o.gender)) o.gender = 'g'
                             o.ranking = isValidRank(o.ranking) ? Number(o.ranking) : 0;
                             out.push(o)
-                            keyMap[o.speelNummer] = o.name;
+                            keyMap[o.playerId] = o.name;
                         }
                     }
                 }
@@ -590,9 +594,9 @@
         },
 
         fixPlayerList(lookup, toFix) {
-            let stillThere = toFix.filter(p => (lookup[p.speelNummer] !== undefined));
+            let stillThere = toFix.filter(p => (lookup[p.playerId] !== undefined));
             return stillThere.map (e => {
-                let updated = lookup[e.speelNummer]
+                let updated = lookup[e.playerId]
                 updated.participating = e.participating
                 updated.paused        = e.paused
                 updated.onCourt       = e.onCourt
@@ -609,7 +613,7 @@
                         this.players = this.mapImportFields(Object.values(data)[0])
                         this.playersToLocalStorage();
                         let knownPlayers = {}
-                        this.players.forEach(e => {knownPlayers[e.speelNummer] = e})
+                        this.players.forEach(e => {knownPlayers[e.playerId] = e})
                         this.waitingPlayers = this.fixPlayerList(knownPlayers, this.waitingPlayers)
                         this.pausedPlayers  = this.fixPlayerList(knownPlayers, this.pausedPlayers)
                         this.courts.forEach(c => {
@@ -621,7 +625,7 @@
 
         // Toggle the pause-requested state of a player on a court
         checkoutPlayer(player, court) {
-            let idx = court.players.findIndex( (par => par.speelNummer === player.speelNummer ));
+            let idx = court.players.findIndex( (par => par.playerId === player.playerId ));
             if (idx < 0) return;        // Should not occur (log?)
             court.players[idx].paused = !court.players[idx].paused
             this.updateSessionState()
@@ -650,13 +654,13 @@
                         for(let i=0; i< nrNeeded; ++i)
                         {
                             let p = this.waitingPlayers.shift()
-                            p.onCourt = court.baan
+                            p.onCourt = court.courtNr
                             p.paused = false
                             court.players.push(p)
                             doUpdateState = true
                         }
                         if (this.settingsData.courtFlash) {
-                            this.doFlashAnimation(document.getElementById(`courtTag_${court.baan}`))
+                            this.doFlashAnimation(document.getElementById(`courtTag_${court.courtNr}`))
                         }
                     }
                 }
@@ -665,7 +669,7 @@
         },
 
         participantExists(participant) {
-            return participant.speelNummer == this.barcode;
+            return participant.playerId == this.barcode;
         },
 
         // checks for new participant and shows the new player modal
@@ -673,7 +677,7 @@
             if (this.barcode !== null) {
                 let participant = this.players.find(this.participantExists);
                 if (!participant) {
-                    this.newPlayer.speelNummer = this.barcode;
+                    this.newPlayer.playerId = this.barcode;
                     document.getElementById('barcode').blur()
                     nextTick(() => {document.getElementById('newPlayerName').focus()})
                     this.showAddParticipant = true;
@@ -690,7 +694,7 @@
         deleteParticipant(participant) {
             this.doConfirm("", "Weet je zeker dat je deze speler wilt verwijderen?", (result) => {
                 if (result === 1) {
-                    let filter = el => el.speelNummer !== participant.speelNummer;
+                    let filter = el => el.playerId !== participant.playerId;
                     this.waitingPlayers = this.waitingPlayers.filter(filter);
                     this.pausedPlayers = this.pausedPlayers.filter(filter);
                     this.courts.forEach( c => c.players = c.players.filter(filter) );
@@ -703,14 +707,14 @@
         // checks in or checks out player
         changeParticipantStatus(participant) {
             let index = this.players.findIndex( (par) => {
-                return participant.speelNummer === par.speelNummer;
+                return participant.playerId === par.playerId;
             })
             if (index < 0) return;
             let p = this.players[index];
             p.participating = !p.participating;
             if (!p.participating)
             {
-                let filter = el => el.speelNummer !== participant.speelNummer;
+                let filter = el => el.playerId !== participant.playerId;
                 this.waitingPlayers = this.waitingPlayers.filter(filter);
                 this.pausedPlayers = this.pausedPlayers.filter(filter);
                 // If onCourt then player is left on the screen until the court is cleared
@@ -729,8 +733,8 @@
             this.stopTimer();
             this.doConfirm('Pauzeren', `${player.name} pauze nemen?`, (result) => {
                 if (result == 1) {
-                    let id = player.speelNummer
-                    let idx = this.waitingPlayers.findIndex(e => e.speelNummer === id)
+                    let id = player.playerId
+                    let idx = this.waitingPlayers.findIndex(e => e.playerId === id)
                     if (idx < 0) return
                     this.waitingPlayers.splice(idx, 1)
                     this.pausedPlayers.push(player)
@@ -741,8 +745,8 @@
 
         // Resume a player in the pausedPlayers list
         resumePlayer(player) {
-            let id = player.speelNummer
-            let idx = this.pausedPlayers.findIndex(e => e.speelNummer === id)
+            let id = player.playerId
+            let idx = this.pausedPlayers.findIndex(e => e.playerId === id)
             if (idx < 0) return;
             this.pausedPlayers.splice(idx, 1)
             this.waitingPlayers.push(player)
@@ -807,13 +811,13 @@
                 p: [],      // Paused players
                 c: [],      // On court players (with to-be-paused/gone state)
             }
-            this.waitingPlayers.forEach( e => state.w.push(e.speelNummer))
-            this.pausedPlayers.forEach(  e => state.p.push(e.speelNummer))
+            this.waitingPlayers.forEach( e => state.w.push(e.playerId))
+            this.pausedPlayers.forEach(  e => state.p.push(e.playerId))
             // A court record consists of a state character ('p' paused, '2' double, '1' single), followed by an array of 2-entry player arrays:
             // One player array consists of the player ID, followed by the state, 'g' gone, 'p' to-be-paused, '-' normal/active
             this.courts.forEach( (c) => {
                 let record = { s: c.paused ? 'p' : c.isDouble ? '2' : '1', p: []};
-                c.players.forEach(p => record.p.push([p.speelNummer, !p.participating ? 'g' : p.paused ? 'p' : '-']))
+                c.players.forEach(p => record.p.push([p.playerId, !p.participating ? 'g' : p.paused ? 'p' : '-']))
                 state.c.push(record)
             })
             if (undoOption === undefined) {
@@ -848,7 +852,7 @@
                     if (typeof(id) != 'string')     throw new Error("ID type is not 'string'")
                     if (usedIds[id] !== undefined)  throw new Error(`ID ${id} is used twice`)
                     usedIds[id] = true;
-                    let p = this.players.find(e => e.speelNummer === id)
+                    let p = this.players.find(e => e.playerId === id)
                     if (p === undefined)            throw new Error(`ID ${id} is not a known participant`)
                     p.participating = true
                     this.waitingPlayers.push(p)
@@ -857,7 +861,7 @@
                     if (typeof(id) != 'string')     throw new Error("ID type is not 'string'")
                     if (usedIds[id] !== undefined)  throw new Error(`ID ${id} is used twice`)
                     usedIds[id] = true;
-                    let p = this.players.find(e => e.speelNummer === id)
+                    let p = this.players.find(e => e.playerId === id)
                     if (p === undefined)            throw new Error(`ID ${id} is not a known participant`)
                     p.participating = true
                     this.pausedPlayers.push(p)
@@ -878,7 +882,7 @@
                         if ((playerState.length != 1) || !"gp-".includes(playerState)) throw new Error("Invalid on-court player state")
                         if (usedIds[id] !== undefined) throw new Error(`ID ${id} is used twice`)
                         usedIds[id] = true;
-                        let p = this.players.find(e => e.speelNummer === id)
+                        let p = this.players.find(e => e.playerId === id)
                         if (p === undefined) throw new Error(`ID ${id} is not a known participant`)
                         this.courts[idx].players.push(p)
                         p.paused = (playerState === "p")
