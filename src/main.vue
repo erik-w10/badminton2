@@ -255,9 +255,18 @@
             })
         })
         window.electronIpc.onNfcCard((_event, uid) => {
-            this.barcode = uid
+            if (this.showParticipantList) {
+                this.doConfirm(
+                    "ID naar clipboard",
+                    `Gelezen NFC ID ${uid} naar het clipboard ?`,
+                    (ok) => { if (ok === 1) window.navigator.clipboard.writeText(uid); }
+                )
+            }
+            else {
+                this.barcode = uid
+                this.newParticipant()
+            }
             this.nfcAlarm = "N"
-            this.newParticipant()
         })
         window.electronIpc.onNfcError((_event, msg) => {
             this.handleNfcError(msg)
