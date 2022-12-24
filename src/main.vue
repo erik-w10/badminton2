@@ -1,6 +1,6 @@
 <template>
 <div class="main">
-    <div class="grid content">
+    <div class="grid content elastic">
         <div class="participants-section">
             <h4 class="title">Aangemelde spelers</h4>
             <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant" :tabindex="mainAllowFocus">
@@ -54,7 +54,7 @@
             <div class="courts">
                 <div  v-bind:key="court.baan" class="court" v-for="court in courts">
                     <div style="display: flex; justify-content: space-between">
-                        <div class="number">{{court.baan}}</div>
+                        <div @click="doCancelAnimations" :id="`courtTag_${court.baan}`" class="number">{{court.baan}}</div>
                         <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
@@ -185,6 +185,45 @@
             </div>
         </div>
 
+        <div class="modal" :class="{'is-active': settingsData.show}">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <p class="modal-card-title">Instelligen</p>
+                    <button @click="hideSettings()" class="delete" aria-label="close"></button>
+                </header>
+                <section class="modal-card-body">
+                    <div class="field">
+                        <div class="control">
+                            <label class="checkbox"><input type="checkbox" v-model="settingsData.courtFlash"> Knipperend baannummer</label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <label class="checkbox"><input type="checkbox" v-model="settingsData.messageBar"> Berichtenbalk</label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Berichtenlijst</label>
+                        <div class="control">
+                            <textarea id="txtBarMessages" class="textarea" placeholder="Berichten" rows="10"></textarea>
+                        </div>
+                    </div>
+                </section>
+                <footer class="modal-card-foot">
+                    <button @click="saveOptions()" class="button is-success">Ok</button>
+                    <button @click="restoreOptions()" class="button">Cancel</button>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <div id="newsBar" :class="`${settingsData.messageBar ? 'barOn' : 'barOff'}`">
+        <div id="newsBarShift">
+            <!-- Some alternatives: star &#9733, badminton &#127992, megaphone &#128226  -->
+            <div><div><span class="newsEmoji">&#128226;</span><span id="oldNews">(old news)</span></div></div>
+            <div><div><span class="newsEmoji">&#128226;</span><span id="newNews">(new news)</span></div></div>
+        </div>
     </div>
 </div>
 </template>
@@ -223,6 +262,47 @@
         return (typeof(rank) === 'string') && (rank.length == 1) && "123".includes(rank);
     }
 
+    let allNews = []
+    let lastNews = ""
+    let newsIndex = 0
+    let newsTimer = null
+
+    function startNews(lines) {
+        if (newsTimer !== null) {
+            clearInterval(newsTimer)
+            newsTimer = null
+        }
+        allNews = lines
+        lastNews = ""
+        newsIndex = 0
+        if (allNews.length != 0) {
+            newsTimer = setInterval(newsUpdate, 10000)
+            newsUpdate(null)
+        }
+    }
+
+    function newsUpdate() {
+        let nbs = document.getElementById("newsBarShift")
+        let on = document.getElementById("oldNews")
+        let nn = document.getElementById("newNews")
+
+        on.innerText = lastNews
+        if (newsIndex >= allNews.length) newsIndex = 0
+        lastNews = allNews[newsIndex++]
+        nn.innerText = lastNews
+
+        let keyFrames = {
+            top: ["0%", "-100%"]
+        }
+        let options = {
+            duration: 1000,
+            iterations: "1",
+            easing: "ease-in-out",
+            fill:  "forwards",
+        }
+        nbs.animate(keyFrames, options)
+    }
+
     export default {
 
     name : 'main-page',
@@ -234,8 +314,8 @@
     // when application starts
     mounted() {
        console.log('test');
+       this.reloadSettings();
         // localStorage.setItem('participants', "[]");
-
         // gets the participant from storage || sets a new storage item
         if (!localStorage.getItem('participants')) {
             localStorage.setItem('participants', "[]");
@@ -253,6 +333,10 @@
                     this.startTimer()
                 }
             })
+        })
+        window.electronIpc.onShowSettings(() => {
+            this.settingsData.show = true
+            this.stopTimer()
         })
         window.electronIpc.onNfcCard((_event, uid) => {
             if (this.showParticipantList) {
@@ -307,6 +391,7 @@
 
             alertData:   { show: false, title: "", msg: "" },
             confirmData: { show: false, title: "", msg: "", action: () => {} },
+            settingsData:{ show: false, courtFlash: false, messageBar: false, barMessages: [] },
 
             disableUndo: true,
             stateString: undefined,
@@ -560,7 +645,7 @@
                             this.clearCourt(court)
                         }
                     }
-                    else
+                    else if (nrNeeded > 0)
                     {
                         for(let i=0; i< nrNeeded; ++i)
                         {
@@ -569,6 +654,9 @@
                             p.paused = false
                             court.players.push(p)
                             doUpdateState = true
+                        }
+                        if (this.settingsData.courtFlash) {
+                            this.doFlashAnimation(document.getElementById(`courtTag_${court.baan}`))
                         }
                     }
                 }
@@ -708,6 +796,11 @@
             this.markStateChange()
         },
 
+        hideSettings() {
+            this.settingsData.show = false
+            this.markStateChange()
+        },
+
         updateSessionState(undoOption) {
             let state = {
                 w: [],      // Waiting players
@@ -811,6 +904,67 @@
             if (this.disableUndo) return;
             this.restoreSessionStateTo(this.undoString)
             this.markStateChange();
+        },
+
+        reloadSettings() {
+            try {
+                let stringData = localStorage.getItem('settings')
+                if (stringData === null)
+                {
+                    this.settingsData.courtFlash = false;
+                    this.settingsData.messageBar = false;
+                    this.settingsData.barMessages = [];
+                    return;
+                }
+                let oldSettings = JSON.parse(stringData)
+                if (typeof(oldSettings.courtFlash) == 'boolean') this.settingsData.courtFlash = oldSettings.courtFlash;
+                if (typeof(oldSettings.messageBar) == 'boolean') this.settingsData.messageBar = oldSettings.messageBar;
+                if (typeof(oldSettings.barMessages) == 'object' && typeof(oldSettings.barMessages.length) == 'number')
+                {
+                    this.settingsData.barMessages = oldSettings.barMessages;
+                    document.getElementById("txtBarMessages").value = this.settingsData.barMessages.join('\n')
+                }
+                startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "")
+                console.log("Restored settings")
+            }
+            catch (e)
+            {
+                this.doAlert('Probleem', `Kon oude instellingen niet teruglezen\n'${e}'`)
+            }
+        },
+
+        restoreOptions() {
+            this.hideSettings()
+            this.reloadSettings()
+        },
+
+        saveOptions() {
+            this.hideSettings()
+            let lines = document.getElementById("txtBarMessages").value.split('\n')
+            this.settingsData.barMessages = lines.map(x => x.trim()).filter((s) => s != "")
+            console.log(`settingsData: ${JSON.stringify(this.settingsData)}`)
+            localStorage.setItem('settings', JSON.stringify(this.settingsData))
+            if (this.settingsData.barMessages.length == 0) this.settingsData.messageBar = false
+            startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "")
+        },
+
+        doFlashAnimation(target) {
+            for (let a of target.getAnimations()) a.cancel();
+            let keyFrames = {
+                backgroundColor: [ "whitesmoke", "whitesmoke", "gray", "gray"]
+            }
+            let options = {
+                duration: 500,
+                iterations: 360,    // 3 minutes 2*3*60
+                direction: "alternate",
+                easing: "ease-in-out",
+                fill:  "forwards",
+            }
+            target.animate(keyFrames, options)
+        },
+
+        doCancelAnimations(evt) {
+            for (let a of evt.target.getAnimations()) a.cancel();
         }
     }
 }
@@ -826,19 +980,48 @@
         text-align: center;
     }
 
+    html {
+        overflow: auto;
+    }
+
     .main {
         user-select: none;
-        background: #ECE9E6;  /* fallback for old browsers */
-        /*
-        background: -webkit-linear-gradient(to top, #FFFFFF, #ECE9E6);  / * Chrome 10-25, Safari 5.1-6 * /
-        background: linear-gradient(to top, #FFFFFF, #ECE9E6); / * W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ * /
-        */
-        min-height: 100vh;
+        background: #ECE9E6;
+        /* min-height: 100vh; */
+
+        display: flex;      /* parent of elastic main application & fixed height news bar (if enabled) */
+        flex-direction: column;
+        margin: 0px;
+        height: 100vh;      /* divide up the entire screen height in vertical flex boxes */
     }
+
+    div.elastic {
+        /* flex child bit: */
+        flex: 1 1 auto;
+        margin-bottom: 0px;
+    }
+
+    .participants-section {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .participants {
+        flex: 80 1 20%;
+        overflow-y: scroll;
+    }
+
+    .paused-section {
+        flex: 20 1 10%;
+        overflow-y: scroll;
+    }
+
 
     .courts-section {
         overflow-y: hidden;
         padding-right: 8px;
+        height: 100%;
     }
 
     .courts {
@@ -846,6 +1029,7 @@
         display: grid;
         grid-template-columns: 1fr 1fr 1fr 1fr;
         grid-gap: 80px;
+        height: 100%;
     }
 
     .court img {
@@ -884,16 +1068,6 @@
 
     .court {
         position: relative;
-    }
-
-    .participants {
-        height: 73vh;
-        overflow-y: scroll;
-    }
-
-    .paused-section {
-        height: 20vh;
-        overflow-y: scroll;
     }
 
     .inactive {
@@ -1016,6 +1190,51 @@
     .clickBtn:hover {
         border: 6px solid rgba(255,255,255,.1);
         border-radius: 6px;
+    }
+
+    #newsBar.barOff {
+        display: none;
+    }
+
+    #newsBar.barOn {
+        /* flex child bit: */
+        flex: 0 0 3rem;         /* Fixed height, elastic main appliciation section uses the remaining viewport height */
+        width: 100vw;
+
+        position: relative;     /* Box reference for embedded 'absolute' positioned child elements */
+        overflow: hidden;       /* Clip anything that does not fit */
+    }
+
+    #newsBarShift {
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        height: 200%;           /* Twice the height of the (clipping) parent div, we can "scroll" by moving this div up */
+        width:  100%;
+    }
+
+    #newsBarShift > div {
+        height: 50%;            /* There are two of these divs (old news and new news) */
+        width: 100%;
+        display: flex;              /* Now to center text in this box */
+        flex-direction: column;
+        justify-content: center;    /* Center content on main axis (note that grow must be 0 or there will be no space to divide up) */
+        background-image: linear-gradient(to bottom, rgb(200, 200, 200), rgb(240, 240, 240), rgb(200, 200, 200));
+        overflow: hidden;
+    }
+
+    #newsBarShift > div > div {
+        width: 200vw;
+        font-size: x-large;
+        overflow: hidden;
+        padding-left: 1em;
+    }
+
+    #newsBarShift > div > div span {
+        display: inline;
+    }
+    span.newsEmoji {
+        padding-right: 0.7em;
     }
 
 </style>

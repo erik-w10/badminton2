@@ -54,6 +54,13 @@ async function createWindow() {
                     }
                 },
                 {
+                    label:'Instellingen',
+                    click() {
+                        console.log('Settings click');
+                        win.webContents.send('show-settings');
+                    }
+                },
+                {
                     label:'Dev-tools',
                     click() {
                         win.openDevTools();
