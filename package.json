@@ -14,6 +14,7 @@
   "main": "background.js",
   "dependencies": {
     "core-js": "^3.8.3",
+    "nfc-pcsc": "^0.8.1",
     "vue": "^3.2.13"
   },
   "devDependencies": {

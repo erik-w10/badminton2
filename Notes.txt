@@ -17,3 +17,12 @@ Krijg wel foutmelding (het schijnt dat dit eigenlij niet werkt in een VM):
 
     libva error: vaGetDriverNameByIndex() failed with unknown libva error, driver_name = (null)
  
+=> Git initial commit
+
+    npm install nfc-pcsc
+    (13 vulnerabilities)
+    npm 
+    (not steeds 13)
+
+(electron:serve doet het nog)
+
