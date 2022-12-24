@@ -764,6 +764,7 @@
     }
 
     .main {
+        user-select: none;
         background: #ECE9E6;  /* fallback for old browsers */
         /*
         background: -webkit-linear-gradient(to top, #FFFFFF, #ECE9E6);  / * Chrome 10-25, Safari 5.1-6 * /
@@ -773,6 +774,7 @@
     }
 
     .courts {
+        user-select: none;
         display: grid;
         grid-template-columns: 1fr 1fr 1fr 1fr;
         grid-gap: 80px;
