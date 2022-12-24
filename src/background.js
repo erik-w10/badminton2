@@ -178,7 +178,7 @@ let handleApduCmdResponse = (err, response) => {
     const uid = response.slice(0, -2).reverse().toString('hex');
 
     nfcCardHandler && nfcCardHandler(uid);
-    console.log('card uid is', uid);
+    console.log('Card UID is', uid);
 }
 
 pcsc.on('reader', function(reader) {
@@ -190,26 +190,26 @@ pcsc.on('reader', function(reader) {
     });
 
     reader.on('status', function(status) {
-        console.log('Status(', this.name, '):', status);
+        // console.log('Status(', this.name, '):', status);
         /* check what has changed */
         var changes = this.state ^ status.state;
         if (changes) {
             if ((changes & this.SCARD_STATE_EMPTY) && (status.state & this.SCARD_STATE_EMPTY)) {
-                console.log("card removed");/* card removed */
+                // console.log("card removed");/* card removed */
                 reader.disconnect(reader.SCARD_LEAVE_CARD, function(err) {
                     if (err) {
                         console.log(err);
                     } else {
-                        console.log('Disconnected');
+                        // console.log('Disconnected');
                     }
                 });
             } else if ((changes & this.SCARD_STATE_PRESENT) && (status.state & this.SCARD_STATE_PRESENT)) {
-                console.log("card inserted");/* card inserted */
+                //console.log("card inserted");/* card inserted */
                 reader.connect({ share_mode : this.SCARD_SHARE_SHARED }, function(err, protocol) {
                     if (err) {
                         console.log(err);
                     } else {
-                        console.log('Protocol(', reader.name, '):', protocol);
+                        // console.log('Protocol(', reader.name, '):', protocol);
                         reader.transmit(apduCmdPacket, 12, reader.SCARD_PROTOCOL_RAW, handleApduCmdResponse);
                     }
                 });

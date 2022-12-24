@@ -6,8 +6,8 @@
             <h4 class="title">Aangemelde spelers</h4>
             <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant">
             <div class="participants">
-                <draggable class="draggable" :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
-                @start="onDragStart" @end="onDragEnd" :move="updateSessionState">
+                <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                @start="onDragStart" @end="onDragEnd" :move="checkListMove">
                     <template #item="{ element }">
                         <div :class="player_class(element, true)" @click="pausePlayer(element)">
                             {{element.name}}
@@ -18,8 +18,8 @@
             <!-- Note if you don't use the name 'element' then it won't work -->
             <div class="paused-section">
                 <h4 class="title">Spelers in pauze</h4>
-                <draggable class="draggable" :list="pausedPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
-                @start="onDragStart" @end="onDragEnd" :move="updateSessionState">
+                <draggable class="draggable-list" :list="pausedPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                @start="onDragStart" @end="onDragEnd" :move="checkListMove">
                     <template #item="{ element }">
                         <div :class="player_class(element, true)" @click="resumePlayer(element)">
                             {{element.name}}
@@ -48,7 +48,7 @@
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
                     <div class="list" style="min-height: 210px">
-                        <draggable class="draggable" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
+                        <draggable class="draggable-court" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
                         :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" v-if="!court.paused">
                             <template #item="{ element }">
                                 <div :class="player_class(element, false)" @click="checkoutPlayer(element, court)">
@@ -251,9 +251,15 @@
         },
 
         // Block move from court unless rotation is paused
-        ifRotationPaused() {
-            if (this.paused) this.updateSessionState()
-            return this.paused
+        ifRotationPaused(evt) {
+            return this.paused && evt.draggedContext.element.participating;
+        },
+
+        checkListMove(evt)
+        {
+            let to_court = evt.to.classList.contains('draggable-court')
+            if ((!this.paused && to_court) || !evt.draggedContext.element.participating) return false;
+            this.updateSessionState()
         },
 
         timeoutHandler()
@@ -294,6 +300,7 @@
             if (!this.showAddParticipant && !this.showParticipantList && !this.paused) {
                 this.startTimer()
             }
+            this.updateSessionState()
             document.getElementById('barcode').focus()
         },
 
@@ -500,6 +507,12 @@
         },
 
         onDragEnd() {
+            // List modifications by dragging can break the onCourt invariant so we always enforce it after a drag operation
+            this.waitingPlayers.forEach (p => p.onCourt = 0)
+            this.pausedPlayers.forEach  (p => p.onCourt = 0)
+            this.courts.forEach((c, idx) => {
+                c.players.forEach(p => p.onCourt = idx)
+            })
             this.markStateChange()
         },
 
@@ -534,7 +547,6 @@
 
         hideParticipantList() {
             this.showParticipantList = false
-            this.updateSessionState()
             this.markStateChange()
         },
 
@@ -657,10 +669,6 @@
         width: 100%;
     }
 
-    #barcode {
-        /* opacity: 0; */
-    }
-
     .grid {
         display: grid;
         grid-template-columns: 1fr 4fr;
@@ -767,6 +775,7 @@
         display: flex;
         margin-right: 10px;
         align-items: right;
+        width: 60px
     }
     div.buttons {
         display: flex;
