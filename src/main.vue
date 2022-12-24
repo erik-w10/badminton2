@@ -8,7 +8,7 @@
                 <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
-                        <div class="dragClick" :class="player_class(element, true)">
+                        <div class="dragClick" :class="playerClass(element, true)">
                             {{element.name}}
                             <div class=clickParts>
                                 <div class="dragHdl"></div>
@@ -25,7 +25,7 @@
                 <draggable class="draggable-list" :list="pausedPlayers" group="participants" itemKey="speelNummer" ghostClass='ghost'
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
-                        <div class="dragClick" :class="player_class(element, true)">
+                        <div class="dragClick" :class="playerClass(element, true)">
                             {{element.name}}
                             <div class=clickParts>
                                 <div class="dragHdl"></div>
@@ -60,7 +60,7 @@
                         <draggable class="draggable-court" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
                         :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                             <template #item="{ element }">
-                                <div class="dragClick" :class="player_class(element, false)">
+                                <div class="dragClick" :class="playerClass(element, false)">
                                     {{element.name}}
                                     <div class=clickParts>
                                         <div class="dragHdl"></div>
@@ -668,7 +668,7 @@
             this.hideAddParticipant()
         },
 
-        player_class(par, group) {
+        playerClass(par, group) {
             let classes = ["list-item"]
             classes.push(group ? "list-item-players" : "on-court-players");
             if (par.gender == 'm') classes.push('male')
