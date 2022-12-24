@@ -212,6 +212,12 @@
         gender:         "Gender",
         ranking:        "Ranking"
     };
+    function isValidGender(gen) {
+        return (typeof(gen) === 'string') && (gen.length == 1) && "vmg".includes(gen);
+    }
+    function isValidRank(rank) {
+        return (typeof(rank) === 'string') && (rank.length == 1) && "123".includes(rank);
+    }
 
     export default {
 
@@ -300,9 +306,9 @@
             return (this.showAddParticipant || this.showParticipantList) ? -1 : 0;
         },
         validNewPlayer() {
-            return (this.newPlayer.name.length > 0) && 
-                   (this.newPlayer.gender.length == 1)  && "vmg".includes(this.newPlayer.gender) &&
-                   (this.newPlayer.ranking.length == 1) && "123".includes(this.newPlayer.ranking);
+            return (this.newPlayer.name.length > 0) &&
+                   isValidGender(this.newPlayer.gender) &&
+                   isValidRank(this.newPlayer.ranking);
         }
     },
 
@@ -462,10 +468,8 @@
                     else {
                         if (o.name.trim() !== "")
                         {
-                            if (!"vmg".includes(o.gender)) o.gender = 'g'
-                            let rank = Number(o.ranking)
-                            if (!Number.isInteger(rank) || (rank < 1) || (rank > 3)) rank = 0
-                            o.ranking = rank
+                            if (!isValidGender(o.gender)) o.gender = 'g'
+                            o.ranking = isValidRank(o.ranking) ? Number(o.ranking) : 0;
                             out.push(o)
                             keyMap[o.speelNummer] = o.name;
                         }
