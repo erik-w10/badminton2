@@ -205,11 +205,14 @@ pcsc.on('reader', function(reader) {
                 });
             } else if ((changes & this.SCARD_STATE_PRESENT) && (status.state & this.SCARD_STATE_PRESENT)) {
                 //console.log("card inserted");/* card inserted */
-                reader.connect({ share_mode : this.SCARD_SHARE_SHARED }, function(err, protocol) {
+                reader.connect({ share_mode : this.SCARD_SHARE_SHARED, protocol : reader.SCARD_PROTOCOL_RAW }, function(err, protocol) {
                     if (err) {
                         console.log(err);
                     } else {
-                        // console.log('Protocol(', reader.name, '):', protocol);
+                        console.log(`SCARD_PROTOCOL_RAW: ${reader.SCARD_PROTOCOL_RAW}`)
+                        console.log(`SCARD_PROTOCOL_T0: ${reader.SCARD_PROTOCOL_T0}`)
+                        console.log(`SCARD_PROTOCOL_T1: ${reader.SCARD_PROTOCOL_T1}`)
+                        console.log('Protocol(', reader.name, '):', protocol);
                         reader.transmit(apduCmdPacket, 12, reader.SCARD_PROTOCOL_RAW, handleApduCmdResponse);
                     }
                 });
