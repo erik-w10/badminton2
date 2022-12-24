@@ -170,7 +170,9 @@ let handleApduCmdResponse = (err, response) => {
 
     // an error occurred
     if (statusCode !== 0x9000) {
-        console.log('Could not get card UID.');
+        let msg = 'Could not get card UID.'
+        console.log(msg);
+        nfcErrorHandler && nfcErrorHandler(msg);
         return;
     }
 
@@ -208,7 +210,8 @@ pcsc.on('reader', function(reader) {
                 //console.log("card inserted");/* card inserted */
                 reader.connect({ share_mode : this.SCARD_SHARE_SHARED }, function(err, protocol) {
                     if (err) {
-                        console.log(err);
+                        console.log("connect error", err);
+                        nfcErrorHandler && nfcErrorHandler("NFC connect error")
                     } else {
                         // console.log('Protocol(', reader.name, '):', protocol);
                         reader.transmit(apduCmdPacket, 12, protocol, handleApduCmdResponse);
