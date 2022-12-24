@@ -1,5 +1,11 @@
 # badminton2
 
+Please note that this project is based on the original project at:
+
+https://github.com/Feddman/badminton
+
+## Additional repe needed
+
 Unfortunatly pcsclite needs to be built from source.  Ensure version 1.0.0 is
 available int the pcsclite sub-directory.
 
