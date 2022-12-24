@@ -592,6 +592,7 @@
 
         // Pause a player in the waitingPlayers list
         pausePlayer(player) {
+            this.stopTimer();
             this.doConfirm('Pauzeren', `${player.name} pauze nemen?`, (result) => {
                 if (result == 1) {
                     let id = player.speelNummer
@@ -599,8 +600,8 @@
                     if (idx < 0) return
                     this.waitingPlayers.splice(idx, 1)
                     this.pausedPlayers.push(player)
-                    this.markStateChange()
                 }
+                this.markStateChange()
             })
         },
 
