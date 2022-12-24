@@ -45,8 +45,9 @@
                     <button class="button is-primary" @click="doUndo()" :disabled="disableUndo" :tabindex="mainAllowFocus">Herstel</button>
                 </div>
                 <div id="nfc-error" :alarm="nfcAlarm">NFC error</div>
-                <div id="timer-status">
-                    Timer: {{timerStatus}}
+                <div id=timerArea>
+                    <div id="timerText">Timer</div>
+                    <div id="timerBar" class="timBar"></div>
                 </div>
             </div>
 
@@ -290,9 +291,8 @@
             showParticipantList: false,
             newPlayer: Object.assign({}, playerTemplate),
 
-            timerId: null,
             sessionState: {},
-            timerCounter: 5,
+            timerAni: null,
             nfcAlarm: "N",
             nfcAlarmTimerId: null,
 
@@ -305,9 +305,6 @@
         }
     },
     computed: {
-        timerStatus() {
-            return (this.timerCounter > 0) ? `${this.timerCounter}` : "-";
-        },
         // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
         mainAllowFocus() {
             return (this.showAddParticipant || this.showParticipantList) ? -1 : 0;
@@ -356,24 +353,27 @@
         timeoutHandler()
         {
             document.getElementById('barcode').focus()
-            if (--this.timerCounter > 0) {
-                this.timerId = setTimeout(this.timeoutHandler.bind(this), 300)
-            }
-            else {
-                if (!this.paused) this.assignParticipants();
-            }
+            if (!this.paused) this.assignParticipants();
         },
 
         startTimer() {
-            if (this.timerId !== null) clearTimeout(this.timerId)
-            this.timerCounter = 5;
-            this.timerId = setTimeout( this.timeoutHandler.bind(this), 300)
+            if (this.timerAni) {
+                this.timerAni.removeEventListener('finish', this.timeoutHandler);
+                this.timerAni.cancel();
+            }
+
+            let tba = document.getElementById("timerBar")
+            let keyFrames = { width: ["100%", "0%"] }
+            let options = { duration: 1500, iterations: "1" }
+            this.timerAni = tba.animate(keyFrames, options)
+            this.timerAni.addEventListener('finish', this.timeoutHandler);
         },
 
         stopTimer() {
-            if (this.timerId === null) return
-            clearTimeout(this.timerId)
-            this.timerId = null
+            if (this.timerAni && (this.timerAni.playState === "running")) {
+                this.timerAni.removeEventListener('finish', this.timeoutHandler);
+                this.timerAni.cancel()
+            }
         },
 
         handleNfcError(msg)
@@ -529,6 +529,7 @@
             if (idx < 0) return;        // Should not occur (log?)
             court.players[idx].paused = !court.players[idx].paused
             this.updateSessionState()
+            document.getElementById('barcode').focus()
         },
 
         // fills the courts with participants
@@ -944,11 +945,32 @@
         background-color: red;
         color: black;
     }
-    #timer-status {
-        display: flex;
+    div#timerArea {
         margin-right: 10px;
-        align-items: right;
-        width: 60px
+        margin-top: 4px;
+        position: relative;     /* Box reference for embedded 'absolute' positioned child elements */
+        width: 100px;
+        height: 24px;
+        display: flex;
+        background-color: rgb(200, 200, 200);
+        border-radius: 6px;
+    }
+    div#timerText {
+        position: absolute;
+        height: 100%;
+        width: 100%;
+        margin: 0px;
+        text-align: center;
+    }
+    div#timerBar {
+        position: absolute;
+        background-color: rgba(50, 50, 50, 0.5);
+        border-radius: 6px;
+        top: 0px;
+        left: 0px;
+        height: 100%;
+        width: 0%;
+        margin: 0px;
     }
     div.buttons {
         display: flex;
