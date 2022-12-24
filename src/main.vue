@@ -1211,6 +1211,7 @@
         left: 0px;
         height: 200%;           /* Twice the height of the (clipping) parent div, we can "scroll" by moving this div up */
         width:  100%;
+        background-color: rgb(220,220,220);
     }
 
     #newsBarShift > div {
@@ -1219,7 +1220,6 @@
         display: flex;              /* Now to center text in this box */
         flex-direction: column;
         justify-content: center;    /* Center content on main axis (note that grow must be 0 or there will be no space to divide up) */
-        background-image: linear-gradient(to bottom, rgb(200, 200, 200), rgb(240, 240, 240), rgb(200, 200, 200));
         overflow: hidden;
     }
 
