@@ -246,6 +246,7 @@
         })
         window.electronIpc.onNfcCard((_event, uid) => {
             this.barcode = uid
+            this.nfcAlarm = "N"
             this.newParticipant()
         })
         window.electronIpc.onNfcError((_event, msg) => {
