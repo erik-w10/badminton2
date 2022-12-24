@@ -72,7 +72,7 @@
                         <div class="field">
                             <label class="label">Naam (+ achternaam)</label>
                             <div class="control">
-                                <input class="input" type="text" placeholder="" v-model="newPlayer.name">
+                                <input id="newPlayerName" class="input" type="text" placeholder="" v-model="newPlayer.name">
                             </div>
                         </div>
 
@@ -173,6 +173,7 @@
 </template>
 
 <script>
+    import { nextTick } from 'process';
     import draggable from 'vuedraggable'
     import xlsxParser from 'xlsx-parse-json';
 
@@ -514,6 +515,8 @@
                 let participant = this.players.find(this.participantExists);
                 if (!participant) {
                     this.newPlayer.speelNummer = this.barcode;
+                    document.getElementById('barcode').blur()
+                    nextTick(() => {document.getElementById('newPlayerName').focus()})
                     this.showAddParticipant = true;
                     this.stopTimer()
                 }
@@ -709,7 +712,7 @@
                         this.courts[idx].players.push(p)
                         p.paused = (playerState === "p")
                         p.participating = (playerState !== "g")
-                        p.onCourt = idx
+                        p.onCourt = idx+1
                     })
                 })
                 console.log("Restored previous session state")
