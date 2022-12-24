@@ -840,12 +840,12 @@
     }
 
     .participants {
-        height: 60vh;
+        height: 73vh;
         overflow-y: scroll;
     }
 
     .paused-section {
-        height: 30vh;
+        height: 20vh;
         overflow-y: scroll;
     }
 
@@ -892,8 +892,8 @@
         opacity: 0.5;
     }
 
-    .draggable {
-        min-height: 100px;
+    .draggable-list {
+        min-height: 40px;
     }
 
     div.bar {
@@ -943,7 +943,11 @@
         flex: 1;
     }
     .clickBtn {
-        flex: 2;
+        flex: 3;
+    }
+    .clickBtn:hover {
+        border: 6px solid rgba(255,255,255,.1);
+        border-radius: 6px;
     }
 
 </style>
