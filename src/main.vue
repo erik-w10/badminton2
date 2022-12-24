@@ -477,14 +477,32 @@
             return out
         },
 
+        fixPlayerList(lookup, toFix) {
+            let stillThere = toFix.filter(p => (lookup[p.speelNummer] !== undefined));
+            return stillThere.map (e => {
+                let updated = lookup[e.speelNummer]
+                updated.participating = e.participating
+                updated.paused        = e.paused
+                updated.onCourt       = e.onCourt
+                return updated;
+            });
+        },
+
         importPlayers() {
             fileDialog()
                 .then(files => {
                     xlsxParser
                     .onFileSelection(files[0])
                     .then(data => {
-                        this.players = this.mapImportFields(Object.values(data)[0]);
+                        this.players = this.mapImportFields(Object.values(data)[0])
                         this.playersToLocalStorage();
+                        let knownPlayers = {}
+                        this.players.forEach(e => {knownPlayers[e.speelNummer] = e})
+                        this.waitingPlayers = this.fixPlayerList(knownPlayers, this.waitingPlayers)
+                        this.pausedPlayers  = this.fixPlayerList(knownPlayers, this.pausedPlayers)
+                        this.courts.forEach(c => {
+                            c.players = this.fixPlayerList(knownPlayers, c.players)
+                        });
                     });
                 });
         },
