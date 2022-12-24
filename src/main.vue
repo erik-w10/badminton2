@@ -58,7 +58,7 @@
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
                     <div class="list" style="min-height: 210px">
                         <draggable class="draggable-court" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
-                        :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" v-if="!court.paused">
+                        :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                             <template #item="{ element }">
                                 <div class="dragClick" :class="player_class(element, false)">
                                     {{element.name}}
