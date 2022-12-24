@@ -58,7 +58,7 @@
                         <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
-                    <div class="list" style="min-height: 210px">
+                    <div class="list" style="min-height: 13.125rem">
                         <draggable class="draggable-court" :list="court.players" group="participants" itemKey="speelNummer" ghostClass='ghost'
                         :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                             <template #item="{ element }">
@@ -836,6 +836,11 @@
         min-height: 100vh;
     }
 
+    .courts-section {
+        overflow-y: hidden;
+        padding-right: 8px;
+    }
+
     .courts {
         user-select: none;
         display: grid;
@@ -961,7 +966,7 @@
         margin-top: 4px;
         position: relative;     /* Box reference for embedded 'absolute' positioned child elements */
         width: 100px;
-        height: 24px;
+        height: 1.5em;
         display: flex;
         background-color: rgb(200, 200, 200);
         border-radius: 6px;
