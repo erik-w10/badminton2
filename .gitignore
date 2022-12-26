@@ -3,6 +3,9 @@ node_modules
 /dist
 /players_export.*
 /pcsclite
+Notes.txt
+package-lock.json
+
 
 
 # local env files
