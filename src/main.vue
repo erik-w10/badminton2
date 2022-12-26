@@ -1192,7 +1192,7 @@
         flex: 3;
     }
     .clickBtn:hover {
-        border: 6px solid rgba(255,255,255,.1);
+        border: 6px solid rgba(255,255,255,.25);
         border-radius: 6px;
     }
 
