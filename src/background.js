@@ -138,7 +138,7 @@ function exportPlayers(event, jsonText)
     });
     let players = JSON.parse(jsonText);
     //let csvFile = ['"name","speelNummer","gender","ranking"'];
-    let csvFile = ['"Naam","Speler nummer","Gender","Ranking"'];
+    let csvFile = ['"Naam","Spelernummer","Gender","Ranking"'];
     for(const p of players)
     {
         csvFile.push(`"${p.name || ""}",${p.speelNummer || 0},"${p.gender || ""}",${p.ranking || 0}`)

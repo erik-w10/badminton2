@@ -189,7 +189,7 @@
             <div class="modal-background"></div>
             <div class="modal-card">
                 <header class="modal-card-head">
-                    <p class="modal-card-title">Instelligen</p>
+                    <p class="modal-card-title">Instellingen</p>
                     <button @click="hideSettings()" class="delete" aria-label="close"></button>
                 </header>
                 <section class="modal-card-body">
@@ -254,6 +254,7 @@
         "Naam":             "name",
         "playerId":         "playerId",
         "speelNummer":      "playerId",
+        "Spelernummer":     "playerId",
         "Speler nummer":    "playerId",
         "gender":           "gender",
         "Gender":           "gender",
