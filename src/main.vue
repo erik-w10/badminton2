@@ -1,6 +1,6 @@
 <template>
 <div class="main">
-    <div class="grid content elastic">
+    <div id="elesticMain" class="grid content">
         <div class="participants-section">
             <h4 class="title">Aangemelde spelers</h4>
             <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant" :tabindex="mainAllowFocus">
@@ -39,7 +39,7 @@
         </div>
 
         <div class="courts-section">
-            <div class="bar" :alarm="nfcAlarm">
+            <div id="buttonBar" class="bar" :alarm="nfcAlarm">
                 <div class="buttons">
                     <button class="button is-primary" @click="togglePause()" v-html="paused ? 'Start rotatie': 'Pauzeer'" :tabindex="mainAllowFocus"></button>
                     <button class="button is-primary" @click="doUndo()" :disabled="disableUndo" :tabindex="mainAllowFocus">Herstel</button>
@@ -58,7 +58,7 @@
                         <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
                     </div>
                     <img :class="{inactive: court.paused}" @click="checkout(court)" src="~@/assets/court.png" alt="">
-                    <div class="list" style="min-height: 13.125rem">
+                    <div id="courtPlayers" class="list">
                         <draggable class="draggable-court" :list="court.players" group="participants" itemKey="playerId" ghostClass='ghost'
                         :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                             <template #item="{ element }">
@@ -1000,7 +1000,7 @@
         height: 100vh;      /* divide up the entire screen height in vertical flex boxes */
     }
 
-    div.elastic {
+    #elesticMain {
         /* flex child bit: */
         flex: 1 1 auto;
         margin-bottom: 0px;
@@ -1025,20 +1025,28 @@
 
     .courts-section {
         overflow-y: hidden;
+        display: flex;
+        flex-direction: column;
         padding-right: 8px;
-        height: 100%;
     }
 
     .courts {
+        /* Flex child bit */
+        flex: 1 0 auto;
+        overflow-y: hidden;
+
         user-select: none;
         display: grid;
         grid-template-columns: 1fr 1fr 1fr 1fr;
-        grid-gap: 80px;
-        height: 100%;
+        grid-gap: 30px 60px;
     }
 
     .court img {
         width: 100%;
+    }
+
+    #courtPlayers {
+        height: 13.13rem;
     }
 
     .grid {
@@ -1122,7 +1130,12 @@
         min-height: 40px;
     }
 
-    div.bar {
+    #buttonBar {
+        /* Flex child bit */
+        flex: 0 0 auto;
+        overflow-y: hidden;
+
+        /* Flex parent bit */
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
