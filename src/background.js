@@ -141,7 +141,7 @@ function exportPlayers(event, jsonText)
     let csvFile = ['"Naam","Spelernummer","Gender","Ranking"'];
     for(const p of players)
     {
-        csvFile.push(`"${p.name || ""}",${p.speelNummer || 0},"${p.gender || ""}",${p.ranking || 0}`)
+        csvFile.push(`"${p.name || ""}",${p.playerId || 0},"${p.gender || ""}",${p.ranking || 0}`)
     }
     fs.writeFile('players_export.csv', csvFile.join('\n') + '\n', 'utf8', () =>{
         console.log(`Wrote "players_export.csv", ${csvFile.length} lines`);
