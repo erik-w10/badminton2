@@ -513,13 +513,13 @@
                 let p = c.players.splice(pick, 1)[0]
                 if (p.participating) {
                     if (p.paused) {
-                        p.paused = false;
                         this.pausedPlayers.push(p);
                     }
                     else {
                         this.waitingPlayers.push(p);
                     }
                 }
+                p.paused = false;
                 p.onCourt = 0;
             }
             c.players = [];
