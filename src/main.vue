@@ -209,6 +209,11 @@
                             <textarea id="txtBarMessages" class="textarea" placeholder="Berichten" rows="10"></textarea>
                         </div>
                     </div>
+                    <div class="field">
+                        <div class="control">
+                            <label class="checkbox"><input type="checkbox" v-model="settingsData.newMessageEffect"> Bericht update effect</label>
+                        </div>
+                    </div>
                 </section>
                 <footer class="modal-card-foot">
                     <button @click="saveOptions()" class="button is-success">Ok</button>
@@ -272,8 +277,9 @@
     let lastNews = ""
     let newsIndex = 0
     let newsTimer = null
+    let updateEffect = false
 
-    function startNews(lines) {
+    function startNews(lines, effectEnable) {
         if (newsTimer !== null) {
             clearInterval(newsTimer)
             newsTimer = null
@@ -281,6 +287,7 @@
         allNews = lines
         lastNews = ""
         newsIndex = 0
+        updateEffect = effectEnable
         if (allNews.length != 0) {
             newsTimer = setInterval(newsUpdate, 10000)
             newsUpdate(null)
@@ -306,7 +313,23 @@
             easing: "ease-in-out",
             fill:  "forwards",
         }
-        nbs.animate(keyFrames, options)
+        let anim = nbs.animate(keyFrames, options)
+        if (updateEffect) anim.onfinish = () => {
+            let nn = document.getElementById("newNews")
+            let color = "rgb(255,117,37)"
+            let keyFrames = [
+                {offset: 0.0, color: `red`, textShadow: `4px 2px 2px ${color}, -4px -2px 2px ${color}` },
+                {offset: 0.1, color: "unset", textShadow: `4px 2px 2px ${color}, -4px -2px 2px ${color}` },
+                {offset: 1, textShadow: `0px 0px 0px ${color}` }
+            ]
+            let options = {
+                duration: 3000,
+                iterations: "1",
+                easing: "ease-in-out",
+                fill:  "forwards",
+            }
+            nn.animate(keyFrames, options)
+        }
     }
 
     export default {
@@ -398,7 +421,7 @@
 
             alertData:   { show: false, title: "", msg: "" },
             confirmData: { show: false, title: "", msg: "", action: () => {} },
-            settingsData:{ show: false, courtFlash: false, messageBar: false, barMessages: [] },
+            settingsData:{ show: false, courtFlash: false, messageBar: false, newMessageEffect: false, barMessages: [] },
 
             disableUndo: true,
             stateString: undefined,
@@ -918,18 +941,20 @@
                 {
                     this.settingsData.courtFlash = false;
                     this.settingsData.messageBar = false;
+                    this.settingsData.newMessageEffect = false;
                     this.settingsData.barMessages = [];
                     return;
                 }
                 let oldSettings = JSON.parse(stringData)
                 if (typeof(oldSettings.courtFlash) == 'boolean') this.settingsData.courtFlash = oldSettings.courtFlash;
                 if (typeof(oldSettings.messageBar) == 'boolean') this.settingsData.messageBar = oldSettings.messageBar;
+                if (typeof(oldSettings.newMessageEffect) == 'boolean') this.settingsData.newMessageEffect = oldSettings.newMessageEffect;
                 if (typeof(oldSettings.barMessages) == 'object' && typeof(oldSettings.barMessages.length) == 'number')
                 {
                     this.settingsData.barMessages = oldSettings.barMessages;
                     document.getElementById("txtBarMessages").value = this.settingsData.barMessages.join('\n')
                 }
-                startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "")
+                startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "", this.settingsData.newMessageEffect)
                 console.log("Restored settings")
             }
             catch (e)
@@ -950,7 +975,7 @@
             console.log(`settingsData: ${JSON.stringify(this.settingsData)}`)
             localStorage.setItem('settings', JSON.stringify(this.settingsData))
             if (this.settingsData.barMessages.length == 0) this.settingsData.messageBar = false
-            startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "")
+            startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "", this.settingsData.newMessageEffect)
         },
 
         doFlashAnimation(target) {
