@@ -1,6 +1,6 @@
 'use strict'
 
-import { app, protocol, BrowserWindow, Menu, ipcMain } from 'electron'
+import { app, protocol, BrowserWindow, Menu, ipcMain, dialog } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
 
@@ -131,20 +131,23 @@ if (isDevelopment) {
     }
 }
 
-function exportPlayers(event, jsonText)
+
+async function exportPlayers(event, jsonText)
 {
-    fs.writeFile('players_export.json', jsonText, 'utf8', () =>{
-        console.log(`Wrote "players_export.json", ${jsonText.length} characters`);
-    });
+    let pathInfo = await dialog.showSaveDialog(
+        {
+            defaultPath: "players_export.csv"
+        }
+    )
+    if (pathInfo.canceled) return;
     let players = JSON.parse(jsonText);
-    //let csvFile = ['"name","speelNummer","gender","ranking"'];
     let csvFile = ['"Naam","Spelernummer","Gender","Ranking"'];
     for(const p of players)
     {
         csvFile.push(`"${p.name || ""}",${p.playerId || 0},"${p.gender || ""}",${p.ranking || 0}`)
     }
-    fs.writeFile('players_export.csv', csvFile.join('\n') + '\n', 'utf8', () =>{
-        console.log(`Wrote "players_export.csv", ${csvFile.length} lines`);
+    fs.writeFile(pathInfo.filePath, csvFile.join('\n') + '\n', 'utf8', () =>{
+        console.log(`Wrote "${pathInfo.filePath}", ${csvFile.length} lines`);
     });
 }
 
