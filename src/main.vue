@@ -316,8 +316,8 @@
             let nn = document.getElementById("newNews")
             let color = "rgb(255,117,37)"
             let keyFrames = [
-                {offset: 0.0, color: `red`, textShadow: `4px 2px 2px ${color}, -4px -2px 2px ${color}` },
-                {offset: 0.1, color: "unset", textShadow: `4px 2px 2px ${color}, -4px -2px 2px ${color}` },
+                {offset: 0.0, color: `red`, textShadow: `2px 2px 2px ${color}, -2px -2px 2px ${color}` },
+                {offset: 0.1, color: "unset", textShadow: `2px 2px 2px ${color}, -2px -2px 2px ${color}` },
                 {offset: 1, textShadow: `0px 0px 0px ${color}` }
             ]
             let options = {
