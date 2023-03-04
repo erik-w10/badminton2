@@ -238,8 +238,6 @@
     import draggable from 'vuedraggable'
     import xlsxParser from 'xlsx-parse-json';
 
-    // for usage of selecting something from the file system.
-    const fileDialog = require('file-dialog');
     const makeUndoPoint = 1;
     const keepUndoPoint = 2;
 
@@ -384,6 +382,9 @@
         })
         window.electronIpc.onNfcError((_event, msg) => {
             this.handleNfcError(msg)
+        })
+        window.electronIpc.onImportData((_event, data) => {
+            this.handleImportData(data)
         })
         for (let i = 0; i < this.amountOfCourts; i++) {
             this.addCourt();
@@ -629,22 +630,25 @@
         },
 
         importPlayers() {
-            fileDialog()
-                .then(files => {
-                    xlsxParser
-                    .onFileSelection(files[0])
-                    .then(data => {
-                        this.players = this.mapImportFields(Object.values(data)[0])
-                        this.playersToLocalStorage();
-                        let knownPlayers = {}
-                        this.players.forEach(e => {knownPlayers[e.playerId] = e})
-                        this.waitingPlayers = this.fixPlayerList(knownPlayers, this.waitingPlayers)
-                        this.pausedPlayers  = this.fixPlayerList(knownPlayers, this.pausedPlayers)
-                        this.courts.forEach(c => {
-                            c.players = this.fixPlayerList(knownPlayers, c.players)
-                        });
-                    });
+            window.electronIpc.importPlayers()
+        },
+
+        handleImportData(array)
+        {
+            let file = new File([array], "some.xlsx")
+
+            xlsxParser.onFileSelection(file)
+            .then(data => {
+                this.players = this.mapImportFields(Object.values(data)[0])
+                this.playersToLocalStorage();
+                let knownPlayers = {}
+                this.players.forEach(e => {knownPlayers[e.playerId] = e})
+                this.waitingPlayers = this.fixPlayerList(knownPlayers, this.waitingPlayers)
+                this.pausedPlayers  = this.fixPlayerList(knownPlayers, this.pausedPlayers)
+                this.courts.forEach(c => {
+                    c.players = this.fixPlayerList(knownPlayers, c.players)
                 });
+            });
         },
 
         // Toggle the pause-requested state of a player on a court

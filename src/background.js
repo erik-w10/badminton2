@@ -17,6 +17,7 @@ protocol.registerSchemesAsPrivileged([
 
 let nfcCardHandler;
 let nfcErrorHandler;
+let importDataHandler;
 
 async function createWindow() {
     // Create the browser window.
@@ -34,6 +35,7 @@ async function createWindow() {
     })
 
     ipcMain.on('export-players', exportPlayers)
+    ipcMain.on('import-players', importPlayers)
 
     const menu = Menu.buildFromTemplate([
         {
@@ -72,6 +74,7 @@ async function createWindow() {
     Menu.setApplicationMenu(menu);
     nfcCardHandler = (uid) => win.webContents.send('nfc-card', uid)     // Note asuming here there is only ever one window...
     nfcErrorHandler = (msg) => win.webContents.send('nfc-error', msg)
+    importDataHandler = (data) => win.webContents.send('import-data', data)
     win.on('close', () => { console.log('Closing main window'); nfcCardHandler = undefined; nfcErrorHandler = undefined; })
 
     if (process.env.WEBPACK_DEV_SERVER_URL) {
@@ -149,6 +152,24 @@ async function exportPlayers(event, jsonText)
     fs.writeFile(pathInfo.filePath, csvFile.join('\n') + '\n', 'utf8', () =>{
         console.log(`Wrote "${pathInfo.filePath}", ${csvFile.length} lines`);
     });
+}
+
+async function importPlayers(event)
+{
+    let pathInfo = await dialog.showOpenDialog(
+        {
+            filters: [
+                { name: "Excel", extensions: ['xls', 'xlsx'] },
+                { name: "Alles", extensions: ['*'] }
+            ],
+            properties: ['openFile']
+        }
+    )
+    if (pathInfo.canceled || (pathInfo.filePaths.length != 1)) return;
+    let path = pathInfo.filePaths[0]
+    let bytes = new Uint8Array(fs.readFileSync(path))
+    importDataHandler(bytes)
+    console.log(`Read "${path}" got ${bytes.length} bytes`)
 }
 
 const pcsc = require('pcsclite')();
