@@ -1,18 +1,21 @@
 <template>
 <div class="main">
-    <div id="elesticMain" class="grid content">
+    <div id="elasticMain" class="grid content">
         <div class="participants-section">
             <h4 class="title">Aangemelde spelers</h4>
-            <input type="text" id="barcode" v-model="barcode" @keyup.enter="newParticipant" :tabindex="mainAllowFocus">
+            <input type="text" id="barcode" v-model="barcode" @keyup.enter="addNewPlayer" :tabindex="mainAllowFocus">
             <div class="participants">
                 <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="playerId" ghostClass='ghost'
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
                         <div class="dragClick" :class="playerClass(element, true)">
-                            {{element.name}}
+                            <div class="labelParts">
+                                <div>{{element.name}}</div>
+                                <div>{{playerTag(element)}}</div>
+                            </div>
                             <div class=clickParts>
                                 <div class="dragHdl"></div>
-                                <div class="clickBtn" @click="pausePlayer(element)"></div>
+                                <div class="clickBtn" @click="waitingPlayerClick(element)"></div>
                                 <div class="dragHdl"></div>
                             </div>
                         </div>
@@ -26,10 +29,13 @@
                 @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                     <template #item="{ element }">
                         <div class="dragClick" :class="playerClass(element, true)">
-                            {{element.name}}
+                            <div class="labelParts">
+                                <div>{{element.name}}</div>
+                                <div>{{playerTag(element)}}</div>
+                            </div>
                             <div class=clickParts>
                                 <div class="dragHdl"></div>
-                                <div class="clickBtn" @click.stop="resumePlayer(element)"></div>
+                                <div class="clickBtn" @click.stop="pausedPlayerClick(element)"></div>
                                 <div class="dragHdl"></div>
                             </div>
                         </div>
@@ -43,6 +49,7 @@
                 <div class="buttons">
                     <button class="button is-primary" @click="togglePause()" v-html="paused ? 'Start rotatie': 'Pauzeer'" :tabindex="mainAllowFocus"></button>
                     <button class="button is-primary" @click="doUndo()" :disabled="disableUndo" :tabindex="mainAllowFocus">Herstel</button>
+                    <button class="button is-primary" @click="toggleLinkMode()" v-html="linkMode ? 'Links klaar': 'Links bewerken'" :disabled="disableLinkMode" :tabindex="mainAllowFocus"></button>
                 </div>
                 <div id="nfc-error" :alarm="nfcAlarm">NFC error</div>
                 <div id=timerArea>
@@ -63,10 +70,13 @@
                         :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                             <template #item="{ element }">
                                 <div class="dragClick" :class="playerClass(element, false)">
-                                    {{element.name}}
+                                    <div class="labelParts">
+                                        <div>{{element.name}}</div>
+                                        <div class="player-tag">{{playerTag(element)}}</div>
+                                    </div>
                                     <div class=clickParts>
                                         <div class="dragHdl"></div>
-                                        <div class="clickBtn" @click="checkoutPlayer(element, court)"></div>
+                                        <div class="clickBtn" @click="playerOnCourtClick(element, court)"></div>
                                         <div class="dragHdl"></div>
                                     </div>
                                 </div>
@@ -141,9 +151,9 @@
                 </div>
                 <section class="modal-card-body">
                     <div class="list">
-                            <div style="overflow:hidden" class="list-item" v-bind:key="participant.playerId" v-for="participant in players">
-                                <b>{{participant.name}}</b> ({{participant.playerId}})
-                            <span @click="deleteParticipant(participant)" style="float: right" class="button is-danger">verwijder</span>
+                            <div style="overflow:hidden" class="list-item" v-bind:key="player.playerId" v-for="player in players">
+                                <b>{{player.name}}</b> ({{player.playerId}})
+                            <span @click="deletePlayer(player)" style="float: right" class="button is-danger">verwijder</span>
                             </div>
                     </div>
                 </section>
@@ -250,6 +260,8 @@
         participating: true,
         paused: false,
         onCourt: 0           // 0 => not on any court
+        // Note: additionally a numeric "link" field may be present when the player is (being) linked to another,
+        //       link is then the proper playerLinks[] index plus 1 or 0 when no second player is selected yet.
     };
 
     const labelMap = {
@@ -264,6 +276,63 @@
         "ranking":          "ranking",
         "Ranking":          "ranking",
     }
+    // Format: an entry is null (not used) or [ player1, player2 ] i.e. references to both players structures
+    // The array index + 1 is stored in the player link field and corresponds to a tag character (a digit in a circle starting at (1))
+    let playerLinks = []
+
+    // Link two players
+    function createLink(player1, player2) {
+        let idx = playerLinks.findIndex(e => e === null)
+        if (idx < 0) {
+            idx = playerLinks.length
+            playerLinks.push([player1, player2])
+        }
+        else {
+            playerLinks[idx] = [player1, player2]
+        }
+        player1.link = idx+1
+        player2.link = idx+1
+    }
+
+    // Compute the proper tag indicator (character) to show after the player name based on the player link field value specified as argument
+    function tagForLink(link) {
+        if (link === undefined) return ""           // Not linked (no tag)
+        if (link === 0) return "\u{25C4}"           // Selected in link assigment: left pointing triangle
+        if (link > 20)  return "\u{1F517}"          // Link symbol
+        return String.fromCodePoint(9311 + link)    // Digit 1..20 in a circle
+    }
+
+    // Break the link with the specified number (>= 1).
+    function breakLink(linkNr) {
+        if (linkNr < 1 || linkNr > playerLinks.length) throw new Error(`Unknown link number ${linkNr}`)
+        let idx = linkNr-1
+        if (playerLinks[idx]) {
+            delete(playerLinks[idx][0].link)
+            delete(playerLinks[idx][1].link)
+            playerLinks[idx] = null
+        }
+    }
+
+    // Rebuild playerLinks based on the recovered / reloaded / imported list of players specified
+    function rebuildPlayerLinks(players)
+    {
+        let maxLink = players.reduce((max, p) => (((p.link || 0) <= max) ? max : p.link ), 0)
+        playerLinks = []
+        for (let idx = 0; idx < maxLink; ++idx)
+        {
+            let entry = null
+            let linked = players.filter(e => e.link === idx+1)
+            if (linked.length > 2) throw new Error(`More than 2 players have link number ${idx+1}`)
+            if (linked.length === 2) {
+                entry = linked
+            }
+            else {
+                linked.forEach(e => delete(e.link))
+            }
+            playerLinks.push(entry)
+        }
+    }
+
     function isValidGender(gen) {
         return (typeof(gen) === 'string') && (gen.length == 1) && "vmg".includes(gen);
     }
@@ -340,26 +409,27 @@
 
     // when application starts
     mounted() {
-       console.log('test');
-       this.reloadSettings();
+        console.log('Starting');
+        this.reloadSettings();
         // localStorage.setItem('participants', "[]");
-        // gets the participant from storage || sets a new storage item
+        // gets the player from storage || sets a new storage item
         if (!localStorage.getItem('participants')) {
             localStorage.setItem('participants', "[]");
         }
         this.players = JSON.parse(localStorage.getItem('participants'));
         this.players.forEach( p => { if (p.speelNummer !== undefined) { p.playerId = p.speelNummer; delete p.speelNummer; }})
-        this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; } )
+        this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link); } )
         window.electronIpc.onPlayerAdmin(() => {
             this.showParticipantList = true
             this.stopTimer()
         })
         window.electronIpc.onRestoreSession(() => {
+            this.stopTimer()
             this.doConfirm("Herladen", "Status van vorige sessie herladen ?", (result) => {
                 if (result === 1) {
                     this.restoreOldSessionState()
-                    this.startTimer()
                 }
+                this.startTimer()
             })
         })
         window.electronIpc.onShowSettings(() => {
@@ -376,7 +446,7 @@
             }
             else {
                 this.barcode = uid
-                this.newParticipant()
+                this.addNewPlayer()
             }
             this.nfcAlarm = "N"
         })
@@ -403,18 +473,20 @@
             password: 'password',
             amountOfCourts: 8,
             paused: false,
-            players: [],            // All all club members and guest pseudo players, present or not (stateless entries)
+            linkMode: false,
+            players: [],            // All club members and guest pseudo players, present or not (stateless entries)
             waitingPlayers: [],     // Those players[] that are present and waiting to play
             pausedPlayers: [],      // Those players[] that are/were present but currently not playing
 
             courts: [],             // List of courts containing the list of players[] that are playing on a particular court
             barcode: null,
+            selectedPlayer: null,   // The first player selected in a linking operation, else null
 
             // whether to show the modals
             showAddParticipant: false,
             showParticipantList: false,
-            newPlayer: Object.assign({}, playerTemplate),
 
+            newPlayer: Object.assign({}, playerTemplate),
             sessionState: {},
             timerAni: null,
             nfcAlarm: "N",
@@ -425,6 +497,7 @@
             settingsData:{ show: false, courtFlash: false, messageBar: false, newMessageEffect: false, barMessages: [] },
 
             disableUndo: true,
+            disableLinkMode: true,
             stateString: undefined,
             undoString:  undefined,
         }
@@ -449,14 +522,26 @@
 
         doConfirm(title, msg, actionIn) {
             this.confirmData = { show: true, title: title, msg: msg, action: (result) => {
-                this.confirmData = false
+                this.confirmData.show = false
                 actionIn(result)
             }}
         },
 
         togglePause() {
             this.paused = !this.paused
+            if (!this.paused) {
+                if (this.linkMode) this.toggleLinkMode()
+            }
+            this.disableLinkMode = !this.paused
             this.markStateChange()
+        },
+
+        toggleLinkMode() {
+            this.linkMode = !this.linkMode
+            if (this.selectedPlayer) {
+                delete(this.selectedPlayer.link)
+                this.selectedPlayer = null
+            }
         },
 
         toggleDouble(court) {
@@ -564,9 +649,9 @@
         playersToLocalStorage() {
             let r = [];
             this.players.forEach( p => r.push({
-                // Note 'participating', 'paused' and 'onCourt' are left out
+                // Note 'participating', 'paused,' 'onCourt' and link are left out
                 name:        p.name,
-                playerId: p.playerId,
+                playerId:    p.playerId,
                 gender:      p.gender,
                 ranking:     p.ranking
             }))
@@ -625,6 +710,7 @@
                 updated.participating = e.participating
                 updated.paused        = e.paused
                 updated.onCourt       = e.onCourt
+                if (e.link !== undefined) updated.link = e.link
                 return updated;
             });
         },
@@ -639,6 +725,7 @@
 
             xlsxParser.onFileSelection(file)
             .then(data => {
+                this.selectedPlayer = null
                 this.players = this.mapImportFields(Object.values(data)[0])
                 this.playersToLocalStorage();
                 let knownPlayers = {}
@@ -648,14 +735,25 @@
                 this.courts.forEach(c => {
                     c.players = this.fixPlayerList(knownPlayers, c.players)
                 });
+                rebuildPlayerLinks(this.players)
             });
         },
 
         // Toggle the pause-requested state of a player on a court
-        checkoutPlayer(player, court) {
-            let idx = court.players.findIndex( (par => par.playerId === player.playerId ));
-            if (idx < 0) return;        // Should not occur (log?)
-            court.players[idx].paused = !court.players[idx].paused
+        togglePlayerPause(player, court) {
+            if (player.onCourt != court.courtNr) console.log("togglePausePlayer invariant problem")
+            if (player.paused)
+            {
+                this.makePlayerActive(player)
+                let linked = this.linkedPlayer(player)
+                if (linked) this.makePlayerActive(linked)
+            }
+            else
+            {
+                this.makePlayerPaused(player)
+                let linked = this.linkedPlayer(player)
+                if (linked) this.makePlayerPaused(linked)
+            }
             this.updateSessionState()
             document.getElementById('barcode').focus()
         },
@@ -668,61 +766,115 @@
                 if (!court.paused) {
                     // check if court is double or single
                     let capacity = court.isDouble ? 4 : 2
-                    let nrNeeded = capacity - court.players.length
-                    if (nrNeeded > this.waitingPlayers.length)
-                    {
-                        if (court.players.length)
+                    if (court.players.length != capacity) {
+                        // First move any remainining players to the front of the waiting list
+                        while(court.players.length > 0)
                         {
                             doUpdateState = true
-                            this.clearCourt(court)
+                            let last = court.players.pop()
+                            last.onCourt = 0
+                            if (!last.participating) {
+                                last.paused = false
+                            }
+                            else {
+                                if (last.paused) {
+                                    last.paused = false;
+                                    this.pausedPlayers.push(last)
+                                }
+                                else {
+                                    this.waitingPlayers.unshift(last)
+                                }
+                            }
                         }
-                    }
-                    else if (nrNeeded > 0)
-                    {
-                        for(let i=0; i< nrNeeded; ++i)
-                        {
+                        // Ensure that linked waiting players are adjacent in the waiting list and single linked players are removed to notYet[]
+                        let notYet = []
+                        let ready = []
+                        while(this.waitingPlayers.length > 0) {
                             let p = this.waitingPlayers.shift()
-                            p.onCourt = court.courtNr
-                            p.paused = false
-                            court.players.push(p)
-                            doUpdateState = true
+                            if (p.link) {
+                                let idx = notYet.findIndex(e => e.link == p.link)
+                                if (idx >= 0) {
+                                    ready.push(notYet.splice(idx, 1)[0])        // Remove the peer and push it in the ready waiting list,
+                                    ready.push(p)                               // Then push the player after it
+                                }
+                                else {
+                                    notYet.push(p)                              // Linked player we have not seen the peer of (yet)
+                                }
+                            }
+                            else {  // No link (or 0) pass the player along to the ready list
+                                ready.push(p)
+                            }
                         }
-                        if (this.settingsData.courtFlash) {
-                            this.doFlashAnimation(document.getElementById(`courtTag_${court.courtNr}`))
+                        let playersNeeded = capacity
+                        if (playersNeeded <= ready.length) {
+                            // Assign pairs of linked or pairs of not-linked players
+                            while (playersNeeded && playersNeeded <= ready.length) {
+                                let toAdd = []
+                                let p1 = ready.shift()      // first waiting player to consider
+                                if (!p1.link) {
+                                    // Not-linked player, find second not-linked player
+                                    let idx = ready.findIndex(e => !e.link)
+                                    if (idx < 0) {
+                                        // Sadly there is no second not-linked player to make a pair, the not-linked player remains waiting
+                                        notYet.unshift(p1)
+                                    }
+                                    else {
+                                        // Hurray we can add two not-linked players to the field
+                                        toAdd = [p1, ready.splice(idx, 1)[0]]
+                                    }
+                                }
+                                else {
+                                    if ((ready.length < 1) || (ready[0].link !== p1.link)) throw new Error('Dur zit een bug hier!')
+                                    toAdd = [p1, ready.shift()]
+                                }
+                                toAdd.forEach( p => {
+                                    p.onCourt = court.courtNr
+                                    p.paused = false
+                                    court.players.push(p)
+                                    doUpdateState = true
+                                    --playersNeeded
+                                })
+                            }
+                            if (playersNeeded) {
+                                console.log("Weird, this should not be possible ?")
+                                this.clearCourt(court)
+                            }
+                            else if (this.settingsData.courtFlash) {
+                                this.doFlashAnimation(document.getElementById(`courtTag_${court.courtNr}`))
+                            }
                         }
+                        this.waitingPlayers = ready.concat(notYet)
                     }
                 }
             });
             if (doUpdateState) this.updateSessionState(keepUndoPoint)
         },
 
-        participantExists(participant) {
-            return participant.playerId == this.barcode;
-        },
-
-        // checks for new participant and shows the new player modal
-        newParticipant() {
+        // checks for new player and shows the new player modal
+        addNewPlayer() {
             if (this.barcode !== null) {
-                let participant = this.players.find(this.participantExists);
-                if (!participant) {
+                let player = this.players.find( p => p.playerId == this.barcode );
+                if (!player) {
                     this.newPlayer.playerId = this.barcode;
                     document.getElementById('barcode').blur()
-                    nextTick(() => {document.getElementById('newPlayerName').focus()})
+                    nextTick( () => document.getElementById('newPlayerName').focus() )
                     this.showAddParticipant = true;
                     this.stopTimer()
                 }
                 else {
-                    this.changeParticipantStatus(participant);
+                    this.changePlayerStatus(player);
                     this.markStateChange()
                 }
             }
         },
 
-        // permanently deletes a player from the application
-        deleteParticipant(participant) {
+        // permanently delete a player from the application
+        deletePlayer(player) {
             this.doConfirm("", "Weet je zeker dat je deze speler wilt verwijderen?", (result) => {
                 if (result === 1) {
-                    let filter = el => el.playerId !== participant.playerId;
+                    if (player.link) breakLink(player.link)
+                    else if (player.link === 0) this.selectedPlayer = null
+                    let filter = el => el.playerId !== player.playerId;
                     this.waitingPlayers = this.waitingPlayers.filter(filter);
                     this.pausedPlayers = this.pausedPlayers.filter(filter);
                     this.courts.forEach( c => c.players = c.players.filter(filter) );
@@ -733,16 +885,16 @@
         },
 
         // checks in or checks out player
-        changeParticipantStatus(participant) {
-            let index = this.players.findIndex( (par) => {
-                return participant.playerId === par.playerId;
-            })
+        changePlayerStatus(player) {
+            let index = this.players.findIndex( p => player.playerId === p.playerId )
             if (index < 0) return;
             let p = this.players[index];
             p.participating = !p.participating;
             if (!p.participating)
             {
-                let filter = el => el.playerId !== participant.playerId;
+                if (p.link) breakLink(p.link)
+                else if (p.link === 0) this.selectedPlayer = null
+                let filter = el => el.playerId !== player.playerId;
                 this.waitingPlayers = this.waitingPlayers.filter(filter);
                 this.pausedPlayers = this.pausedPlayers.filter(filter);
                 // If onCourt then player is left on the screen until the court is cleared
@@ -750,10 +902,105 @@
             else
             {
                 // Note: when a player is on court, checks out and checks in again then this just undoes the check out
-                if (!p.onCourt) this.waitingPlayers.push(p);
+                p.paused = false
+                if (!p.onCourt) this.waitingPlayers.push(p)
             }
             this.updateSessionState()
             this.barcode = null;
+        },
+
+        // When editing player links a player on screen is clicked
+        linkUpdate(player) {
+            if (player.link === undefined) {
+                // Player not linked yet: Create a link / selection
+                if (this.selectedPlayer === null) {
+                    this.selectedPlayer = player
+                    player.link = 0
+                }
+                else {
+                    createLink(this.selectedPlayer, player)
+                    this.selectedPlayer = null
+                }
+            }
+            else if (player.link === 0) {
+                // Player is the "selected player", abort linking, clear selected player
+                this.selectedPlayer = null;
+                delete(player.link)
+            }
+            else if (this.selectedPlayer !== null) {
+                // Trying to link a "selected player" to a player that is already linked: fail and produce a warning
+                this.doAlert("Fout", `Speler "${player.name}" heeft al een link`)
+            }
+            else {
+                // Selecting a player that has a link already (first click), break the link
+                breakLink(player.link)
+            }
+        },
+
+        waitingPlayerClick(player) {
+            if (this.linkMode) {
+                this.linkUpdate(player)
+            }
+            else {
+                this.pausePlayer(player)
+            }
+        },
+
+        pausedPlayerClick(player) {
+            if (this.linkMode) {
+                this.linkUpdate(player)
+            }
+            else {
+                this.resumePlayer(player)
+            }
+        },
+
+        playerOnCourtClick(player, court) {
+            if (this.linkMode) {
+                this.linkUpdate(player)
+            }
+            else {
+                this.togglePlayerPause(player, court)
+            }
+        },
+
+        // Get the link tag (or emtpy). Note that this function is accesible from Vue elements (tagForLink is not)
+        playerTag(player) {
+            return tagForLink(player.link)
+        },
+
+        // Return the linked player or null if there is none
+        linkedPlayer(player) {
+            if (!player.link) return null
+            let link = playerLinks[player.link-1]
+            if (!link || link.length != 2) throw new Error(`Link ${player.link} not found`)
+            let idx = link.findIndex(e => e.playerId === player.playerId)
+            if (idx < 0) throw new Error(`Linked player not found at link ${player.link}`)
+            return link[1-idx]
+        },
+
+        // Make a paricipating player paused, whatever it current status is (paused already, waiting or on court)
+        makePlayerPaused(player) {
+            if (player.onCourt != 0) {
+                player.paused = true
+            }
+            else if (this.pausedPlayers.findIndex(e => e.playerId === player.playerId) < 0)
+            {
+                let idx = this.waitingPlayers.findIndex(e => e.playerId === player.playerId)
+                if (idx >= 0) this.pausedPlayers.push(this.waitingPlayers.splice(idx, 1)[0])
+            }
+        },
+
+        // Make a paricipating player active (non-paused), whatever it current status is (paused, already waiting or on court)
+        makePlayerActive(player) {
+            if (player.onCourt != 0) {
+                player.paused = false
+            }
+            else if (this.waitingPlayers.findIndex(e => e.playerId === player.playerId) < 0)
+            {
+                let idx = this.pausedPlayers.findIndex(e => e.playerId === player.playerId)
+                if (idx >= 0) this.waitingPlayers.push(this.pausedPlayers.splice(idx, 1)[0])
+            }
         },
 
         // Pause a player in the waitingPlayers list
@@ -761,11 +1008,9 @@
             this.stopTimer();
             this.doConfirm('Pauzeren', `${player.name} pauze nemen?`, (result) => {
                 if (result == 1) {
-                    let id = player.playerId
-                    let idx = this.waitingPlayers.findIndex(e => e.playerId === id)
-                    if (idx < 0) return
-                    this.waitingPlayers.splice(idx, 1)
-                    this.pausedPlayers.push(player)
+                    this.makePlayerPaused(player)
+                    let linked = this.linkedPlayer(player)
+                    if (linked) this.makePlayerPaused(linked)
                 }
                 this.markStateChange()
             })
@@ -773,11 +1018,9 @@
 
         // Resume a player in the pausedPlayers list
         resumePlayer(player) {
-            let id = player.playerId
-            let idx = this.pausedPlayers.findIndex(e => e.playerId === id)
-            if (idx < 0) return;
-            this.pausedPlayers.splice(idx, 1)
-            this.waitingPlayers.push(player)
+            this.makePlayerActive(player)
+            let linked = this.linkedPlayer(player)
+            if (linked) this.makePlayerActive(linked)
             this.markStateChange()
         },
 
@@ -787,8 +1030,8 @@
 
         onDragEnd() {
             // List modifications by dragging can break the onCourt invariant so we always enforce it after a drag operation
-            this.waitingPlayers.forEach (p => p.onCourt = 0)
-            this.pausedPlayers.forEach  (p => p.onCourt = 0)
+            this.waitingPlayers.forEach (p => { p.onCourt = 0; p.paused = false })
+            this.pausedPlayers.forEach  (p => { p.onCourt = 0; p.paused = false })
             this.courts.forEach((c, idx) => {
                 c.players.forEach(p => p.onCourt = idx+1)
             })
@@ -839,13 +1082,14 @@
                 p: [],      // Paused players
                 c: [],      // On court players (with to-be-paused/gone state)
             }
-            this.waitingPlayers.forEach( e => state.w.push(e.playerId))
-            this.pausedPlayers.forEach(  e => state.p.push(e.playerId))
+            this.waitingPlayers.forEach( e => state.w.push(e.link ? [e.playerId, e.link] : e.playerId))
+            this.pausedPlayers.forEach(  e => state.p.push(e.link ? [e.playerId, e.link] : e.playerId))
             // A court record consists of a state character ('p' paused, '2' double, '1' single), followed by an array of 2-entry player arrays:
             // One player array consists of the player ID, followed by the state, 'g' gone, 'p' to-be-paused, '-' normal/active
+            // If the player is linked then instead of a player ID string a 2-element array if player ID & link number is used
             this.courts.forEach( (c) => {
                 let record = { s: c.paused ? 'p' : c.isDouble ? '2' : '1', p: []};
-                c.players.forEach(p => record.p.push([p.playerId, !p.participating ? 'g' : p.paused ? 'p' : '-']))
+                c.players.forEach(p => record.p.push([p.link ? [p.playerId, p.link] : p.playerId, !p.participating ? 'g' : p.paused ? 'p' : '-']))
                 state.c.push(record)
             })
             if (undoOption === undefined) {
@@ -860,6 +1104,7 @@
         },
 
         resetSessionState() {
+            this.selectedPlayer = null
             this.waitingPlayers = []
             this.pausedPlayers = []
             this.courts.forEach(c => {
@@ -867,33 +1112,35 @@
                 c.paused = false
                 c.players = []
             })
-            this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; } )
+            this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } )
+            playerLinks = []
         },
 
         restoreSessionStateTo(stateString) {
             this.resetSessionState()
             try {
-                let usedIds = {};
                 let oldState = JSON.parse(stateString)
                 if (!oldState)                      throw new Error("Old state not found");
-                oldState.w.forEach( id => {
-                    if (typeof(id) != 'string')     throw new Error("ID type is not 'string'")
+                let usedIds = {};
+                const getPlayerWithId = (id) => {
+                    let link = undefined
+                    if (typeof(id) == 'object') {
+                        if (typeof(id[0]) != 'string') throw new Error("ID name part is not 'string'")
+                        if (typeof(id[1]) != 'number') throw new Error("ID type link part not 'number'")
+                        link = id[1]
+                        id = id[0]
+                    }
+                    else if (typeof(id) != 'string')   throw new Error("ID type is not 'string'")
                     if (usedIds[id] !== undefined)  throw new Error(`ID ${id} is used twice`)
-                    usedIds[id] = true;
+                    usedIds[id] = true
                     let p = this.players.find(e => e.playerId === id)
-                    if (p === undefined)            throw new Error(`ID ${id} is not a known participant`)
+                    if (p === undefined)            throw new Error(`ID ${id} is not a known player`)
                     p.participating = true
-                    this.waitingPlayers.push(p)
-                })
-                oldState.p.forEach( id => {
-                    if (typeof(id) != 'string')     throw new Error("ID type is not 'string'")
-                    if (usedIds[id] !== undefined)  throw new Error(`ID ${id} is used twice`)
-                    usedIds[id] = true;
-                    let p = this.players.find(e => e.playerId === id)
-                    if (p === undefined)            throw new Error(`ID ${id} is not a known participant`)
-                    p.participating = true
-                    this.pausedPlayers.push(p)
-                })
+                    if (link) p.link = link
+                    return p
+                }
+                oldState.w.forEach( id => this.waitingPlayers.push(getPlayerWithId(id)) )
+                oldState.p.forEach( id => this.pausedPlayers.push( getPlayerWithId(id)) )
                 if (oldState.c.length != this.courts.length) throw new Error(`Nr of courts doesn't match`)
                 oldState.c.forEach( (c, idx) => {
                     let courtState = c.s;
@@ -905,19 +1152,16 @@
                         if (rec.length != 2)        throw new Error("Player on court record length is not 2")
                         let id = rec[0]
                         let playerState = rec[1]
-                        if (typeof(id) != 'string') throw new Error("ID type is not 'string'")
                         if (typeof(playerState) != 'string') throw new Error("On-court player state type is not 'string'")
                         if ((playerState.length != 1) || !"gp-".includes(playerState)) throw new Error("Invalid on-court player state")
-                        if (usedIds[id] !== undefined) throw new Error(`ID ${id} is used twice`)
-                        usedIds[id] = true;
-                        let p = this.players.find(e => e.playerId === id)
-                        if (p === undefined) throw new Error(`ID ${id} is not a known participant`)
+                        let p = getPlayerWithId(id)
                         this.courts[idx].players.push(p)
                         p.paused = (playerState === "p")
                         p.participating = (playerState !== "g")
                         p.onCourt = idx+1
                     })
                 })
+                rebuildPlayerLinks(this.players)
                 console.log("Restored previous session state")
                 this.updateSessionState()
             }
@@ -976,7 +1220,6 @@
             this.hideSettings()
             let lines = document.getElementById("txtBarMessages").value.split('\n')
             this.settingsData.barMessages = lines.map(x => x.trim()).filter((s) => s != "")
-            console.log(`settingsData: ${JSON.stringify(this.settingsData)}`)
             localStorage.setItem('settings', JSON.stringify(this.settingsData))
             if (this.settingsData.barMessages.length == 0) this.settingsData.messageBar = false
             startNews(this.settingsData.messageBar ? this.settingsData.barMessages : "", this.settingsData.newMessageEffect)
@@ -1029,7 +1272,7 @@
         height: 100vh;      /* divide up the entire screen height in vertical flex boxes */
     }
 
-    #elesticMain {
+    #elasticMain {
         /* flex child bit: */
         flex: 1 1 auto;
         margin-bottom: 0px;
@@ -1218,6 +1461,14 @@
     }
     .dragClick {
         position: relative; /* Use as reference for absolute positioning*/
+    }
+    .labelParts {
+        padding: 0px;
+        display: flex;
+        justify-content: space-between;
+    }
+    .labelParts .player-tag {
+        font-weight: normal;
     }
     .clickParts {
         position: absolute; /* Overlap with the entire parent div*/
