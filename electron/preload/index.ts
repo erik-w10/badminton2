@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
-contextBridge.exposeInMainWorld('electronIpc', {
+contextBridge.exposeInMainWorld('myIpc', {
   exportPlayers:    (jsonText) => ipcRenderer.send('export-players', jsonText),
   importPlayers:    ()         => ipcRenderer.send('import-players'),
   onImportData:     (callback) => ipcRenderer.on('import-data', callback),

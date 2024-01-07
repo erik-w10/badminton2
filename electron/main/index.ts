@@ -1,42 +1,52 @@
-'use strict'
+import { app, protocol, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron'
+import { release } from 'node:os'
+import { join } from 'node:path'
+import { writeFile, readFileSync } from 'node:fs'
 
-import { app, protocol, BrowserWindow, Menu, ipcMain, dialog } from 'electron'
-import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
-import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
+// The built directory structure
+//
+// ├─┬ dist-electron
+// │ ├─┬ main
+// │ │ └── index.js    > Electron-Main
+// │ └─┬ preload
+// │   └── index.js    > Preload-Scripts
+// ├─┬ dist
+// │ └── index.html    > Electron-Renderer
+//
+process.env.DIST_ELECTRON = join(__dirname, '..')
+process.env.DIST = join(process.env.DIST_ELECTRON, '../dist')
+process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL
+  ? join(process.env.DIST_ELECTRON, '../public')
+  : process.env.DIST
 
-const path = require('path')
-const fs = require('fs')
+// Disable GPU Acceleration for Windows 7
+if (release().startsWith('6.1')) app.disableHardwareAcceleration()
 
-const isDevelopment = process.env.NODE_ENV !== 'production'
+// Set application name for Windows 10+ notifications
+if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+  process.exit(0)
+}
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
     { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
 
-let nfcCardHandler;
-let nfcErrorHandler;
-let importDataHandler;
+// Remove electron security warnings
+// This warning only shows in development mode
+// Read more on https://www.electronjs.org/docs/latest/tutorial/security
+// process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 
-async function createWindow() {
-    // Create the browser window.
-    const win = new BrowserWindow({
-        width: 800,
-        height: 600,
-        webPreferences: {
-            // Use pluginOptions.nodeIntegration, leave this alone
-            // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
-            nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
-            contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
+let win: BrowserWindow | null = null
+// Here, you can also use other preload
+const preload = join(__dirname, '../preload/index.js')
+const url = process.env.VITE_DEV_SERVER_URL
+const indexHtml = join(process.env.DIST, 'index.html')
 
-            preload: path.join(__dirname, 'preload.js'),
-        }
-    })
-
-    ipcMain.on('export-players', exportPlayers)
-    ipcMain.on('import-players', importPlayers)
-
+function installApplicationMenu(win : BrowserWindow) : void {
     const menu = Menu.buildFromTemplate([
         {
             label: 'Menu',
@@ -65,75 +75,109 @@ async function createWindow() {
                 {
                     label:'Dev-tools',
                     click() {
-                        win.openDevTools();
+                        win.webContents.openDevTools()
                     }
                 },
             ]
         }
     ])
     Menu.setApplicationMenu(menu);
+}
+
+async function createWindow() {
+    win = new BrowserWindow({
+        title: 'Main window',
+        icon: join(process.env.VITE_PUBLIC, 'favicon.ico'),
+        webPreferences: {
+            preload,
+            // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
+            // Consider using contextBridge.exposeInMainWorld
+            // Read more on https://www.electronjs.org/docs/latest/tutorial/context-isolation
+            //nodeIntegration: true,
+            //contextIsolation: false,
+        },
+    })
+    
+    ipcMain.on('export-players', exportPlayers)
+    ipcMain.on('import-players', importPlayers)
+    
+    installApplicationMenu(win);
     nfcCardHandler = (uid) => win.webContents.send('nfc-card', uid)     // Note asuming here there is only ever one window...
     nfcErrorHandler = (msg) => win.webContents.send('nfc-error', msg)
     importDataHandler = (data) => win.webContents.send('import-data', data)
-    win.on('close', () => { console.log('Closing main window'); nfcCardHandler = undefined; nfcErrorHandler = undefined; })
-
-    if (process.env.WEBPACK_DEV_SERVER_URL) {
-        // Load the url of the dev server if in development mode
-        await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL)
-        if (!process.env.IS_TEST) win.webContents.openDevTools()
+    win.on('close', () => {
+        console.log('Closing main window');
+        nfcCardHandler = undefined;
+        nfcErrorHandler = undefined;
+        importDataHandler = undefined;
+    })
+    
+    if (process.env.VITE_DEV_SERVER_URL) { // electron-vite-vue#298
+        win.loadURL(url)
+        // Open devTool if the app is not packaged
+        win.webContents.openDevTools()
     } else {
-        createProtocol('app')
-        // Load the index.html when not in development
-        win.loadURL('app://./index.html')
+        win.loadFile(indexHtml)
     }
+    
+    // Test actively push message to the Electron-Renderer TODO remove?
+    win.webContents.on('did-finish-load', () => {
+        win?.webContents.send('main-process-message', new Date().toLocaleString())
+    })
+    
+    // Make all links open with the browser, not with the application TODO remove?
+    win.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('https:')) shell.openExternal(url)
+        return { action: 'deny' }
+    })
+    // win.webContents.on('will-navigate', (event, url) => { }) #344
     win.maximize();
 }
 
-// Quit when all windows are closed.
+app.whenReady().then(createWindow)
+
 app.on('window-all-closed', () => {
-    // On macOS it is common for applications and their menu bar
-    // to stay active until the user quits explicitly with Cmd + Q
-    if (process.platform !== 'darwin') {
-        app.quit()
-    }
+  win = null
+  if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('second-instance', () => {
+  if (win) {
+    // Focus on the main window if the user tried to open another
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
 })
 
 app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-})
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', async () => {
-    if (isDevelopment && !process.env.IS_TEST) {
-        // Install Vue Devtools
-        try {
-            await installExtension(VUEJS3_DEVTOOLS)
-        } catch (e) {
-            console.error('Vue Devtools failed to install:', e.toString())
-        }
-    }
+  const allWindows = BrowserWindow.getAllWindows()
+  if (allWindows.length) {
+    allWindows[0].focus()
+  } else {
     createWindow()
+  }
 })
 
-// Exit cleanly on request from parent process in development mode.
-if (isDevelopment) {
-    if (process.platform === 'win32') {
-        process.on('message', (data) => {
-            if (data === 'graceful-exit') {
-                app.quit()
-            }
-        })
-    } else {
-        process.on('SIGTERM', () => {
-            app.quit()
-        })
-    }
-}
+// New window example arg: new windows url
+ipcMain.handle('open-win', (_, arg) => {
+  const childWindow = new BrowserWindow({
+    webPreferences: {
+      preload,
+      //nodeIntegration: true,
+      //contextIsolation: false,
+    },
+  })
 
+  if (process.env.VITE_DEV_SERVER_URL) {
+    childWindow.loadURL(`${url}#${arg}`)
+  } else {
+    childWindow.loadFile(indexHtml, { hash: arg })
+  }
+})
+
+let nfcCardHandler;
+let nfcErrorHandler;
+let importDataHandler;
 
 async function exportPlayers(event, jsonText)
 {
@@ -149,7 +193,7 @@ async function exportPlayers(event, jsonText)
     {
         csvFile.push(`"${p.name || ""}",${p.playerId || 0},"${p.gender || ""}",${p.ranking || 0}`)
     }
-    fs.writeFile(pathInfo.filePath, csvFile.join('\n') + '\n', 'utf8', () =>{
+    writeFile(pathInfo.filePath, csvFile.join('\n') + '\n', 'utf8', () =>{
         console.log(`Wrote "${pathInfo.filePath}", ${csvFile.length} lines`);
     });
 }
@@ -167,7 +211,7 @@ async function importPlayers(event)
     )
     if (pathInfo.canceled || (pathInfo.filePaths.length != 1)) return;
     let path = pathInfo.filePaths[0]
-    let bytes = new Uint8Array(fs.readFileSync(path))
+    let bytes = new Uint8Array(readFileSync(path))
     importDataHandler(bytes)
     console.log(`Read "${path}" got ${bytes.length} bytes`)
 }
@@ -175,7 +219,7 @@ async function importPlayers(event)
 const pcsc = require('pcsclite')();
 
 // APDU CMD: Get Data
-const apduCmdPacket = new Buffer.from([
+const apduCmdPacket = Buffer.from([
     0xff, // Class
     0xca, // INS
     0x00, // P1: Get current card UID
