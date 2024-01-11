@@ -1,0 +1,69 @@
+// Player as persisted in local storage (without state)
+class KnownPlayer {
+    name:           string = "";
+    playerId:       string = "";
+    gender:         string = "";
+    ranking:        string = "";
+}
+
+/** Player as used run-time to store identity & state */
+class Player extends KnownPlayer {
+    /** Is the player resent / participating? */
+    participating:  boolean = false;
+
+    /** Is the player paused / taking a break? */
+    paused:         boolean = false;
+
+    /** Nuber of the court the player is on or 0 if he is not on any court */
+    onCourt:        number = 0;
+
+    /** A numeric "link" field may be present when the player is (being) linked to another,
+      * link is then the proper playerLinks[] index plus 1 or 0 when no second player is selected yet. */
+    link?:          number;
+}
+
+interface PlayerLookup {
+    [key : string] : Player;
+}
+type Court = {
+    courtNr:  number;
+    isDouble: boolean;
+    paused:   boolean;
+    players:  Player[];
+}
+
+const playerTemplate : Player = new Player;
+
+interface LabelMap {
+    [key: string] : string;
+}
+const labelMap : LabelMap = {
+    "name":             "name",
+    "Naam":             "name",
+    "playerId":         "playerId",
+    "speelNummer":      "playerId",
+    "Spelernummer":     "playerId",
+    "Speler nummer":    "playerId",
+    "gender":           "gender",
+    "Gender":           "gender",
+    "ranking":          "ranking",
+    "Ranking":          "ranking",
+}
+// Format: an entry is null (not used) or [ player1, player2 ] i.e. references to both players structures
+// The array index + 1 is stored in the player link field and corresponds to a tag character (a digit in a circle starting at (1))
+let playerLinks : (Player[] | null)[] = []
+
+// Link two players
+function createLink(player1 : Player, player2 : Player) {
+    let idx = playerLinks.findIndex(e => e === null)
+    if (idx < 0) {
+        idx = playerLinks.length
+        playerLinks.push([player1, player2])
+    }
+    else {
+        playerLinks[idx] = [player1, player2]
+    }
+    player1.link = idx+1
+    player2.link = idx+1
+}
+

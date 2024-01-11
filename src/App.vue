@@ -2,6 +2,7 @@
     import { ref, onMounted, reactive, computed, nextTick } from 'vue'
     import draggable from 'vuedraggable'
     import { xlsxParser } from './externals'
+    import NewsBar from './NewsBar.vue'
 
     const makeUndoPoint = 1;
     const keepUndoPoint = 2;
@@ -129,65 +130,6 @@
         return (typeof(rank) === 'string') && (rank.length == 1) && "123".includes(rank);
     }
 
-    let allNews : string[] = []
-    let lastNews = ""
-    let newsIndex = 0
-    let newsTimer : NodeJS.Timeout | null = null
-    let updateEffect = false
-
-    function startNews(lines : string[], effectEnable : boolean) {
-        if (newsTimer !== null) {
-            clearInterval(newsTimer)
-            newsTimer = null
-        }
-        allNews = lines
-        lastNews = ""
-        newsIndex = 0
-        updateEffect = effectEnable
-        if (allNews.length != 0) {
-            newsTimer = setInterval(newsUpdate, 10000)
-            newsUpdate()
-        }
-    }
-
-    function newsUpdate() {
-        let nbs = document.getElementById("newsBarShift") as HTMLElement
-        let on = document.getElementById("oldNews") as HTMLElement
-        let nn = document.getElementById("newNews") as HTMLElement
-        
-        on.innerText = lastNews
-        if (newsIndex >= allNews.length) newsIndex = 0
-        lastNews = allNews[newsIndex++]
-        nn.innerText = lastNews
-        
-        let keyFrames = {
-            top: ["0%", "-100%"]
-        }
-        let options : KeyframeAnimationOptions = {
-            duration: 1000,
-            iterations: 1,
-            easing: "ease-in-out",
-            fill:  "forwards",
-        }
-        let anim = nbs.animate(keyFrames, options)
-        if (updateEffect) anim.onfinish = () => {
-            let nn = document.getElementById("newNews") as HTMLElement
-            let color = "rgb(255,117,37)"
-            let keyFrames = [
-            {offset: 0.0, color: `red`, textShadow: `2px 2px 2px ${color}, -2px -2px 2px ${color}` },
-            {offset: 0.1, color: "unset", textShadow: `2px 2px 2px ${color}, -2px -2px 2px ${color}` },
-            {offset: 1, textShadow: `0px 0px 0px ${color}` }
-            ]
-            let options : KeyframeAnimationOptions = {
-                duration: 3000,
-                iterations: 1,
-                easing: "ease-in-out",
-                fill:  "forwards",
-            }
-            nn.animate(keyFrames, options)
-        }
-    }
-
     // when application starts
     onMounted(() => {
         console.log('Starting');
@@ -197,9 +139,9 @@
         if (!localStorage.getItem('participants')) {
             localStorage.setItem('participants', "[]");
         }
-        players.value = JSON.parse(localStorage.getItem('participants') as string);
-        players.value.forEach( p => { let x = p as any; if (x.speelNummer !== undefined) { p.playerId = x.speelNummer; delete x.speelNummer; }})
-        players.value.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link); } )
+        players = JSON.parse(localStorage.getItem('participants') as string);
+        players.forEach( p => { let x = p as any; if (x.speelNummer !== undefined) { p.playerId = x.speelNummer; delete x.speelNummer; }})
+        players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link); } )
         window.myIpc.onPlayerAdmin(() => {
             showParticipantList.value = true
             stopTimer()
@@ -253,7 +195,7 @@
     const amountOfCourts = 8
     const paused = ref(false)
     const linkMode = ref(false)
-    const players = ref([] as Player[])         // All club members and guest pseudo players, present or not (stateless entries)
+    let players = [] as Player[]                // All club members and guest pseudo players, present or not (stateless entries)
     const waitingPlayers = ref([] as Player[])  // Those players[] that are present and waiting to play
     const pausedPlayers = ref([] as Player[])   // Those players[] that are/were present but currently not playing
     
@@ -282,10 +224,14 @@
     let stateString : undefined|string = undefined
     let undoString  : undefined|string= undefined
 
-            // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
+    // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
     const mainAllowFocus = computed<number>(() => {
         return (showAddParticipant || showParticipantList) ? -1 : 0;
     })
+    const newsBarText = computed<string[]>(() => {
+        return settingsData.messageBar ? settingsData.barMessages : [] as string[];
+    })
+
     const validNewPlayer = computed<boolean>(() => {
         return (newPlayer.value.name.length > 0) &&
         isValidGender(newPlayer.value.gender) &&
@@ -427,7 +373,7 @@
 
     function playersToLocalStorage() {
         let r : KnownPlayer[] = [];
-        players.value.forEach( p => r.push({
+        players.forEach( p => r.push({
             // Note 'participating', 'paused,' 'onCourt' and link are left out
             name:        p.name,
             playerId:    p.playerId,
@@ -508,16 +454,16 @@
         xlsxParser.onFileSelection(file)
         .then((data : any) => {
             selectedPlayer.value = null
-            players.value = mapImportFields(Object.values(data)[0] as any[])
+            players = mapImportFields(Object.values(data)[0] as any[])
             playersToLocalStorage();
             let knownPlayers : { [key : string]: Player } = {}
-            players.value.forEach(e => {knownPlayers[<string>e.playerId] = e})
+            players.forEach(e => {knownPlayers[<string>e.playerId] = e})
             waitingPlayers.value = fixPlayerList(knownPlayers, waitingPlayers.value)
             pausedPlayers.value  = fixPlayerList(knownPlayers, pausedPlayers.value)
             courts.value.forEach(c => {
                 c.players = fixPlayerList(knownPlayers, c.players)
             });
-            rebuildPlayerLinks(players.value)
+            rebuildPlayerLinks(players)
         });
     }
 
@@ -635,7 +581,7 @@
     // checks for new player and shows the new player modal
     function addNewPlayer() {
         if (barcode.value !== null) {
-            let player = players.value.find( p => p.playerId == barcode.value );
+            let player = players.find( p => p.playerId == barcode.value );
             if (!player) {
                 newPlayer.value.playerId = barcode.value;
                 (document.getElementById('barcode') as HTMLInputElement).blur()
@@ -660,7 +606,7 @@
                 waitingPlayers.value = waitingPlayers.value.filter(filter);
                 pausedPlayers.value = pausedPlayers.value.filter(filter);
                 courts.value.forEach( c => c.players = c.players.filter(filter) );
-                players.value = players.value.filter(filter);
+                players = players.filter(filter);
                 playersToLocalStorage();
             }
         })
@@ -668,9 +614,9 @@
 
     // checks in or checks out player
     function changePlayerStatus(player : Player) {
-        let index = players.value.findIndex( p => player.playerId === p.playerId )
+        let index = players.findIndex( p => player.playerId === p.playerId )
         if (index < 0) return;
-        let p = players.value[index];
+        let p = players[index];
         p.participating = !p.participating;
         if (!p.participating)
         {
@@ -831,7 +777,7 @@
     function addParticipant() {
         if (!newPlayer.value.name.length) return
         
-        players.value.push(newPlayer.value);
+        players.push(newPlayer.value);
         playersToLocalStorage();
         waitingPlayers.value.push(newPlayer.value);
         hideAddParticipant()
@@ -897,7 +843,7 @@
             c.paused = false
             c.players = []
         })
-        players.value.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } )
+        players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } )
         playerLinks = []
     }
 
@@ -921,7 +867,7 @@
 
                 if (usedIds[id] !== undefined)   throw new Error(`ID ${id} is used twice`)
                 usedIds[id] = true
-                let p = players.value.find(e => e.playerId === id)
+                let p = players.find(e => e.playerId === id)
                 if (p === undefined)             throw new Error(`ID ${id} is not a known player`)
                 p.participating = true
                 if (link) p.link = link
@@ -949,7 +895,7 @@
                     p.onCourt = idx+1
                 })
             })
-            rebuildPlayerLinks(players.value)
+            rebuildPlayerLinks(players)
             console.log("Restored previous session state")
             updateSessionState()
         }
@@ -990,7 +936,6 @@
                 settingsData.barMessages = oldSettings.barMessages;
                 (document.getElementById("txtBarMessages") as HTMLTextAreaElement).value = settingsData.barMessages.join('\n')
             }
-            startNews(settingsData.messageBar ? settingsData.barMessages : [], settingsData.newMessageEffect)
             console.log("Restored settings")
         }
         catch (e)
@@ -1010,7 +955,6 @@
         settingsData.barMessages = lines.map(x => x.trim()).filter((s) => s != "")
         localStorage.setItem('settings', JSON.stringify(settingsData))
         if (settingsData.barMessages.length == 0) settingsData.messageBar = false
-        startNews(settingsData.messageBar ? settingsData.barMessages : [], settingsData.newMessageEffect)
     }
 
     function doFlashAnimation(target : HTMLElement) {
@@ -1267,14 +1211,7 @@
                 </div>
             </div>
         </div>
-    
-        <div id="newsBar" :class="`${settingsData.messageBar ? 'barOn' : 'barOff'}`">
-            <div id="newsBarShift">
-                <!-- Some alternatives: star &#9733, badminton &#127992, megaphone &#128226  -->
-                <div><div><span class="newsEmoji">&#128226;</span><span id="oldNews">(old news)</span></div></div>
-                <div><div><span class="newsEmoji">&#128226;</span><span id="newNews">(new news)</span></div></div>
-            </div>
-        </div>
+        <NewsBar :text="newsBarText" :effect="settingsData.newMessageEffect" />
     </div>
 </template>
 
@@ -1520,51 +1457,6 @@
     .clickBtn:hover {
         border: 6px solid rgba(255,255,255,.25);
         border-radius: 6px;
-    }
-
-    #newsBar.barOff {
-        display: none;
-    }
-
-    #newsBar.barOn {
-        /* flex child bit: */
-        flex: 0 0 3rem;         /* Fixed height, elastic main appliciation section uses the remaining viewport height */
-        width: 100vw;
-
-        position: relative;     /* Box reference for embedded 'absolute' positioned child elements */
-        overflow: hidden;       /* Clip anything that does not fit */
-    }
-
-    #newsBarShift {
-        position: absolute;
-        top: 0px;
-        left: 0px;
-        height: 200%;           /* Twice the height of the (clipping) parent div, we can "scroll" by moving this div up */
-        width:  100%;
-        background-color: rgb(220,220,220);
-    }
-
-    #newsBarShift > div {
-        height: 50%;            /* There are two of these divs (old news and new news) */
-        width: 100%;
-        display: flex;              /* Now to center text in this box */
-        flex-direction: column;
-        justify-content: center;    /* Center content on main axis (note that grow must be 0 or there will be no space to divide up) */
-        overflow: hidden;
-    }
-
-    #newsBarShift > div > div {
-        width: 200vw;
-        font-size: x-large;
-        overflow: hidden;
-        padding-left: 1em;
-    }
-
-    #newsBarShift > div > div span {
-        display: inline;
-    }
-    span.newsEmoji {
-        padding-right: 0.7em;
     }
 
 </style>
