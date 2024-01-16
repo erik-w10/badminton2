@@ -1,147 +1,21 @@
 <script setup lang="ts">
     import { ref, onMounted, reactive, computed, nextTick } from 'vue'
     import draggable from 'vuedraggable'
-    import { xlsxParser } from './externals'
     import NewsBar from './NewsBar.vue'
+    import SettingsModal from './SettingsModal.vue'
+    import {Player, Court } from './player_admin'
+    import {playerTemplate, repairPlayerLists, loadPlayers, playersToLocalStorage, isValidGender, isValidRank, importPlayers, exportPlayers, handleImportData,
+        deletePlayer, togglePlayerPresence, clearSelectedPlayer, linkUpdate, tagForLink, linkedPlayer, makePlayerPaused, makePlayerActive, updateSessionState,
+        undo, restoreOldState, clearCourt, assignParticipants, UndoOption} from './player_admin'
+    import adm from './player_admin'
+    import { settingsData, reloadSettings } from './settings'
 
-    const makeUndoPoint = 1;
-    const keepUndoPoint = 2;
-    enum UndoOption {
-        DoNothing = 0,
-        Make,
-        Keep
-    }
-
-    // Player as persisted in local storage (without state)
-    interface KnownPlayer {
-        name:           string;
-        playerId:       string;
-        gender:         string;
-        ranking:        string;
-    }
-    // Player as used run-time to store identity & state
-    interface Player extends KnownPlayer {
-        participating:  boolean;
-        paused:         boolean;
-        onCourt:        number;     // 0 => not on any court
-        link?:          number;
-    }
-    interface PlayerLookup {
-        [key : string] : Player;
-    }
-    type Court = {
-        courtNr:  number;
-        isDouble: boolean;
-        paused:   boolean;
-        players:  Player[];
-    }
-
-
-    const playerTemplate : Player = {
-        name: "",
-        playerId: "",
-        gender: "",
-        ranking: "",
-        // State (not persisted):
-        participating: true,
-        paused: false,
-        onCourt: 0           // 0 => not on any court
-        // Note: additionally a numeric "link" field may be present when the player is (being) linked to another,
-        //       link is then the proper playerLinks[] index plus 1 or 0 when no second player is selected yet.
-    };
-
-    interface LabelMap {
-        [key: string] : string;
-    }
-    const labelMap : LabelMap = {
-        "name":             "name",
-        "Naam":             "name",
-        "playerId":         "playerId",
-        "speelNummer":      "playerId",
-        "Spelernummer":     "playerId",
-        "Speler nummer":    "playerId",
-        "gender":           "gender",
-        "Gender":           "gender",
-        "ranking":          "ranking",
-        "Ranking":          "ranking",
-    }
-    // Format: an entry is null (not used) or [ player1, player2 ] i.e. references to both players structures
-    // The array index + 1 is stored in the player link field and corresponds to a tag character (a digit in a circle starting at (1))
-    let playerLinks : (Player[] | null)[] = []
-
-    // Link two players
-    function createLink(player1 : Player, player2 : Player) {
-        let idx = playerLinks.findIndex(e => e === null)
-        if (idx < 0) {
-            idx = playerLinks.length
-            playerLinks.push([player1, player2])
-        }
-        else {
-            playerLinks[idx] = [player1, player2]
-        }
-        player1.link = idx+1
-        player2.link = idx+1
-    }
-
-    // Compute the proper tag indicator (character) to show after the player name based on the player link field value specified as argument
-    function tagForLink(link : any) {
-        if (link === undefined) return ""           // Not linked (no tag)
-        if (link === 0) return "\u{25C4}"           // Selected in link assigment: left pointing triangle
-        if (link > 20)  return "\u{1F517}"          // Link symbol
-        return String.fromCodePoint(9311 + link)    // Digit 1..20 in a circle
-    }
-
-    // Break the link with the specified number (>= 1).
-    function breakLink(linkNr : number) {
-        if (linkNr < 1 || linkNr > playerLinks.length) throw new Error(`Unknown link number ${linkNr}`)
-        let idx = linkNr-1
-        let l = playerLinks[idx]
-        if (l !== null) {
-            delete(l[0].link)
-            delete(l[1].link)
-            playerLinks[idx] = null
-        }
-    }
-
-    // Rebuild playerLinks based on the recovered / reloaded / imported list of players specified
-    function rebuildPlayerLinks(players : Player[])
-    {
-        let maxLink = players.reduce((max, p) => (((p.link || 0) <= max) ? max : <number>p.link ), 0)
-        playerLinks = []
-        for (let idx = 0; idx < maxLink; ++idx)
-        {
-            let entry = null
-            let linked = players.filter(e => e.link === idx+1)
-            if (linked.length > 2) throw new Error(`More than 2 players have link number ${idx+1}`)
-            if (linked.length === 2) {
-                entry = linked
-            }
-            else {
-                linked.forEach(e => delete(e.link))
-            }
-            playerLinks.push(entry)
-        }
-    }
-
-    function isValidGender(gen : any) {
-        return (typeof(gen) === 'string') && (gen.length == 1) && "vmg".includes(gen);
-    }
-    function isValidRank(rank : any) {
-        return (typeof(rank) === 'string') && (rank.length == 1) && "123".includes(rank);
-    }
 
     // when application starts
     onMounted(() => {
         console.log('Starting');
-        reloadSettings();
-        // localStorage.setItem('participants', "[]");
-        // gets the player from storage || sets a new storage item
-        if (!localStorage.getItem('participants')) {
-            localStorage.setItem('participants', "[]");
-        }
-        players = JSON.parse(localStorage.getItem('participants') as string);
-        players.forEach( p => { let x = p as any; if (x.speelNummer !== undefined) { p.playerId = x.speelNummer; delete x.speelNummer; }})
-        players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link); } )
+        reloadSettings(doAlert);
+        loadPlayers();
         window.myIpc.onPlayerAdmin(() => {
             showParticipantList.value = true
             stopTimer()
@@ -178,7 +52,7 @@
             handleNfcError(msg)
         })
         window.myIpc.onImportData((_event : Event, data : any[]) => {
-            handleImportData(data)
+            handleImportData(data, (warnings : string[]) => { doAlert("Meldingen", warnings.join('\n')) })
         })
         for (let i = 0; i < amountOfCourts; i++) {
             addCourt();
@@ -195,14 +69,8 @@
     const amountOfCourts = 8
     const paused = ref(false)
     const linkMode = ref(false)
-    let players = [] as Player[]                // All club members and guest pseudo players, present or not (stateless entries)
-    const waitingPlayers = ref([] as Player[])  // Those players[] that are present and waiting to play
-    const pausedPlayers = ref([] as Player[])   // Those players[] that are/were present but currently not playing
-    
-    const courts = ref([] as Court[])           // List of courts containing the list of players[] that are playing on a particular court
     const barcode = ref<null|string>(null)
-    const selectedPlayer = ref<null|Player>(null)   // The first player selected in a linking operation, else null
-    
+
     // whether to show the modals
     const showAddParticipant  = ref(false)
     const showParticipantList = ref(false)
@@ -216,13 +84,9 @@
     const showAlert = ref(false)
     let confirmData =  reactive({ title: "", msg: "", action: (result : number) => {} })
     const showConfirm = ref(false)
-    let settingsData = reactive({ courtFlash: false, messageBar: false, newMessageEffect: false, barMessages: [] as string[] })
     const showSettings = ref(false)
-    
-    const disableUndo = ref(true)
-    const disableLinkMode = ref(true)
-    let stateString : undefined|string = undefined
-    let undoString  : undefined|string= undefined
+
+    const enableLinkMode = ref(false)
 
     // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
     const mainAllowFocus = computed<number>(() => {
@@ -257,22 +121,18 @@
         if (!paused.value) {
             if (linkMode.value) toggleLinkMode()
         }
-        disableLinkMode.value = !paused.value
+        enableLinkMode.value = paused.value
         markStateChange()
     }
 
     function toggleLinkMode() {
         linkMode.value = !linkMode.value
-        if (selectedPlayer.value) {
-            delete(selectedPlayer.value.link)
-            selectedPlayer.value = null
-        }
+        clearSelectedPlayer();
     }
 
     function toggleDouble(court : Court) {
         if (paused.value) court.isDouble = !court.isDouble;
     }
-
 
     // Block move from court unless rotation is paused
     function ifRotationPaused(evt : any) {
@@ -288,7 +148,10 @@
     function timeoutHandler()
     {
         (document.getElementById('barcode') as HTMLInputElement).focus()
-        if (!paused.value) assignParticipants();
+        const onCourtAssignment = (courtNr : number) => {
+                if (settingsData.courtFlash) doFlashAnimation(document.getElementById(`courtTag_${courtNr}`) as HTMLDivElement)
+        }
+        if (!paused.value) assignParticipants(onCourtAssignment)
     }
 
     function startTimer() {
@@ -332,31 +195,12 @@
 
     function addCourt() {
         let court = {
-            courtNr: courts.value.length + 1,
+            courtNr: adm.courts.length + 1,
             isDouble: true,
             paused: false,
             players: []
         }
-        courts.value.push(court);
-    }
-
-    // clears one court
-    function clearCourt(c : Court) {
-        for (let n = c.players.length; n > 0; --n) {
-            let pick = Math.floor(n * Math.random())
-            let p = c.players.splice(pick, 1)[0]
-            if (p.participating) {
-                if (p.paused) {
-                    pausedPlayers.value.push(p);
-                }
-                else {
-                    waitingPlayers.value.push(p);
-                }
-            }
-            p.paused = false;
-            p.onCourt = 0;
-        }
-        c.players = [];
+        adm.courts.push(court);
     }
 
     // checks out a court
@@ -369,102 +213,6 @@
             clearCourt(court)
             markStateChange(UndoOption.Make)
         }
-    }
-
-    function playersToLocalStorage() {
-        let r : KnownPlayer[] = [];
-        players.forEach( p => r.push({
-            // Note 'participating', 'paused,' 'onCourt' and link are left out
-            name:        p.name,
-            playerId:    p.playerId,
-            gender:      p.gender,
-            ranking:     p.ranking
-        }))
-        localStorage.setItem('participants', JSON.stringify(r));
-    }
-
-    function exportPlayers() {
-        let playersJson = localStorage.getItem('participants');
-        if (playersJson !== null) window.myIpc.exportPlayers(playersJson)
-    }
-
-    function mapImportFields(inp : any[]) : Player[]
-    {
-        let out : Player[] = []
-        let warnings : string [] = []
-        let keyMap : { [key : string] : string }= {}
-        let ignoredFields : { [key : string] : boolean } = {}
-        let noPlayerCount = 0
-        inp.forEach( (e, idx) => {
-            let o : { [key : string] : any }= {};
-            for (let fld in e) {
-                let field = fld.trim()
-                if (labelMap[field] !== undefined) o[labelMap[field]] = e[field]
-                else if (ignoredFields[field] === undefined) {
-                    console.log(`Ignoring field '${field}'`)
-                    ignoredFields[field] = true;
-                }
-            }
-            if (!o.playerId) {
-                ++noPlayerCount;
-            }
-            else {
-                if (keyMap[<string>o.playerId] !== undefined) {
-                    warnings.push(`Regel ${idx}: DUPLICAAT (${o.name}) ${o.playerId} = '${keyMap[o.playerId]}'`)
-                }
-                else {
-                    if (o.name.trim() !== "")
-                    {
-                        if (!isValidGender(o.gender)) o.gender = 'g'
-                        o.ranking = isValidRank(o.ranking) ? Number(o.ranking) : 0;
-                        o.participating = false;
-                        o.paused = false;
-                        o.onCourt = 0;
-                        out.push(o as Player)
-                        keyMap[o.playerId] = o.name;
-                    }
-                }
-            }
-        })
-        if (noPlayerCount) warnings.push(`${noPlayerCount} regels bevatten geen spelernummer`)
-        if (warnings.length) doAlert("Meldingen", warnings.join('\n'))
-        return out
-    }
-
-    function fixPlayerList(lookup : PlayerLookup, toFix : Player[]) {
-        let stillThere = toFix.filter(p => (lookup[<string>p.playerId] !== undefined));
-        return stillThere.map (e => {
-            let updated = lookup[<string>e.playerId]
-            updated.participating = e.participating
-            updated.paused        = e.paused
-            updated.onCourt       = e.onCourt
-            if (e.link !== undefined) updated.link = e.link
-            return updated;
-        });
-    }
-
-    function importPlayers() {
-        window.myIpc.importPlayers()
-    }
-
-    function handleImportData(array : any)
-    {
-        let file = new File([array], "some.xlsx")
-
-        xlsxParser.onFileSelection(file)
-        .then((data : any) => {
-            selectedPlayer.value = null
-            players = mapImportFields(Object.values(data)[0] as any[])
-            playersToLocalStorage();
-            let knownPlayers : { [key : string]: Player } = {}
-            players.forEach(e => {knownPlayers[<string>e.playerId] = e})
-            waitingPlayers.value = fixPlayerList(knownPlayers, waitingPlayers.value)
-            pausedPlayers.value  = fixPlayerList(knownPlayers, pausedPlayers.value)
-            courts.value.forEach(c => {
-                c.players = fixPlayerList(knownPlayers, c.players)
-            });
-            rebuildPlayerLinks(players)
-        });
     }
 
     // Toggle the pause-requested state of a player on a court
@@ -486,102 +234,10 @@
         (document.getElementById('barcode') as HTMLInputElement).focus()
     }
 
-    // fills the courts with participants
-    function assignParticipants() {
-        let doUpdateState = false
-        courts.value.forEach((court) => {
-            // check if court is in training mode
-            if (!court.paused) {
-                // check if court is double or single
-                let capacity = court.isDouble ? 4 : 2
-                if (court.players.length != capacity) {
-                    // First move any remainining players to the front of the waiting list
-                    while(court.players.length > 0)
-                    {
-                        doUpdateState = true
-                        let last = court.players.pop() as Player
-                        last.onCourt = 0
-                        if (!last.participating) {
-                            last.paused = false
-                        }
-                        else {
-                            if (last.paused) {
-                                last.paused = false;
-                                pausedPlayers.value.push(last)
-                            }
-                            else {
-                                waitingPlayers.value.unshift(last)
-                            }
-                        }
-                    }
-                    // Ensure that linked waiting players are adjacent in the waiting list and single linked players are removed to notYet[]
-                    let notYet = []
-                    let ready = []
-                    while(waitingPlayers.value.length > 0) {
-                        let p = waitingPlayers.value.shift() as Player
-                        if (p.link) {
-                            let idx = notYet.findIndex(e => e.link == p.link)
-                            if (idx >= 0) {
-                                ready.push(notYet.splice(idx, 1)[0])        // Remove the peer and push it in the ready waiting list,
-                                ready.push(p)                               // Then push the player after it
-                            }
-                            else {
-                                notYet.push(p)                              // Linked player we have not seen the peer of (yet)
-                            }
-                        }
-                        else {  // No link (or 0) pass the player along to the ready list
-                            ready.push(p)
-                        }
-                    }
-                    let playersNeeded = capacity
-                    if (playersNeeded <= ready.length) {
-                        // Assign pairs of linked or pairs of not-linked players
-                        while (playersNeeded && playersNeeded <= ready.length) {
-                            let toAdd : Player[] = []
-                            let p1 = ready.shift() as Player      // first waiting player to consider
-                            if (!p1.link) {
-                                // Not-linked player, find second not-linked player
-                                let idx = ready.findIndex(e => !e.link)
-                                if (idx < 0) {
-                                    // Sadly there is no second not-linked player to make a pair, the not-linked player remains waiting
-                                    notYet.unshift(p1)
-                                }
-                                else {
-                                    // Hurray we can add two not-linked players to the field
-                                    toAdd = [p1, ready.splice(idx, 1)[0]]
-                                }
-                            }
-                            else {
-                                if ((ready.length < 1) || (ready[0].link !== p1.link)) throw new Error('Dur zit een bug hier!')
-                                toAdd = [p1, ready.shift() as Player]
-                            }
-                            toAdd.forEach( p => {
-                                p.onCourt = court.courtNr
-                                p.paused = false
-                                court.players.push(p)
-                                doUpdateState = true
-                                --playersNeeded
-                            })
-                        }
-                        if (playersNeeded) {
-                            console.log("Weird, this should not be possible ?")
-                            clearCourt(court)
-                        }
-                        else if (settingsData.courtFlash) {
-                            doFlashAnimation(document.getElementById(`courtTag_${court.courtNr}`) as HTMLDivElement)
-                        }
-                    }
-                    waitingPlayers.value = ready.concat(notYet)
-                }
-            }
-        });
-        if (doUpdateState) updateSessionState(UndoOption.Keep)
-    }
-
     // checks for new player and shows the new player modal
     function addNewPlayer() {
         if (barcode.value !== null) {
-            let player = players.find( p => p.playerId == barcode.value );
+            let player = adm.players.find( p => p.playerId == barcode.value );
             if (!player) {
                 newPlayer.value.playerId = barcode.value;
                 (document.getElementById('barcode') as HTMLInputElement).blur()
@@ -597,77 +253,23 @@
     }
 
     // permanently delete a player from the application
-    function deletePlayer(player : Player) {
+    function askDeletePlayer(player : Player) {
         doConfirm("", "Weet je zeker dat je deze speler wilt verwijderen?", (result) => {
             if (result === 1) {
-                if (player.link) breakLink(player.link)
-                else if (player.link === 0) selectedPlayer.value = null
-                let filter = (el : Player) => el.playerId !== player.playerId;
-                waitingPlayers.value = waitingPlayers.value.filter(filter);
-                pausedPlayers.value = pausedPlayers.value.filter(filter);
-                courts.value.forEach( c => c.players = c.players.filter(filter) );
-                players = players.filter(filter);
-                playersToLocalStorage();
+                deletePlayer(player);
             }
         })
     }
 
     // checks in or checks out player
     function changePlayerStatus(player : Player) {
-        let index = players.findIndex( p => player.playerId === p.playerId )
-        if (index < 0) return;
-        let p = players[index];
-        p.participating = !p.participating;
-        if (!p.participating)
-        {
-            if (p.link) breakLink(p.link)
-            else if (p.link === 0) selectedPlayer.value = null
-            let filter = (el : Player) => el.playerId !== player.playerId;
-            waitingPlayers.value = waitingPlayers.value.filter(filter);
-            pausedPlayers.value = pausedPlayers.value.filter(filter);
-            // If onCourt then player is left on the screen until the court is cleared
-        }
-        else
-        {
-            // Note: when a player is on court, checks out and checks in again then this just undoes the check out
-            p.paused = false
-            if (!p.onCourt) waitingPlayers.value.push(p)
-        }
-        updateSessionState()
+        togglePlayerPresence(player)
         barcode.value = null;
-    }
-
-    // When editing player links, a player on screen is clicked
-    function linkUpdate(player : Player) {
-        if (player.link === undefined) {
-            // Player not linked yet: Create a link / selection
-            if (selectedPlayer.value === null) {
-                selectedPlayer.value = player
-                player.link = 0
-            }
-            else {
-                createLink(selectedPlayer.value, player)
-                selectedPlayer.value = null
-            }
-        }
-        else if (player.link === 0) {
-            // Player is the "selected player", abort linking, clear selected player
-            selectedPlayer.value = null;
-            delete(player.link)
-        }
-        else if (selectedPlayer.value !== null) {
-            // Trying to link a "selected player" to a player that is already linked: fail and produce a warning
-            doAlert("Fout", `Speler "${player.name}" heeft al een link`)
-        }
-        else {
-            // Selecting a player that has a link already (first click), break the link
-            breakLink(player.link)
-        }
     }
 
     function waitingPlayerClick(player : Player) {
         if (linkMode.value) {
-            linkUpdate(player)
+            linkUpdate(player, doAlert)
         }
         else {
             pausePlayer(player)
@@ -676,7 +278,7 @@
 
     function pausedPlayerClick(player : Player) {
         if (linkMode.value) {
-            linkUpdate(player)
+            linkUpdate(player, doAlert)
         }
         else {
             resumePlayer(player)
@@ -685,7 +287,7 @@
 
     function playerOnCourtClick(player : Player, court : Court) {
         if (linkMode.value) {
-            linkUpdate(player)
+            linkUpdate(player, doAlert)
         }
         else {
             togglePlayerPause(player, court)
@@ -695,40 +297,6 @@
     // Get the link tag (or emtpy). Note that this function is accesible from Vue elements (tagForLink is not)
     function playerTag(player : Player) {
         return tagForLink(player.link)
-    }
-
-    // Return the linked player or null if there is none
-    function linkedPlayer(player : Player) {
-        if (!player.link) return null
-        let link = playerLinks[player.link-1]
-        if (!link || link.length != 2) throw new Error(`Link ${player.link} not found`)
-        let idx = link.findIndex(e => e.playerId === player.playerId)
-        if (idx < 0) throw new Error(`Linked player not found at link ${player.link}`)
-        return link[1-idx]
-    }
-
-    // Make a paricipating player paused, whatever it current status is (paused already, waiting or on court)
-    function makePlayerPaused(player : Player) {
-        if (player.onCourt != 0) {
-            player.paused = true
-        }
-        else if (pausedPlayers.value.findIndex(e => e.playerId === player.playerId) < 0)
-        {
-            let idx = waitingPlayers.value.findIndex(e => e.playerId === player.playerId)
-            if (idx >= 0) pausedPlayers.value.push(waitingPlayers.value.splice(idx, 1)[0])
-        }
-    }
-
-    // Make a paricipating player active (non-paused), whatever it current status is (paused, already waiting or on court)
-    function makePlayerActive(player : Player) {
-        if (player.onCourt != 0) {
-            player.paused = false
-        }
-        else if (waitingPlayers.value.findIndex(e => e.playerId === player.playerId) < 0)
-        {
-            let idx = pausedPlayers.value.findIndex(e => e.playerId === player.playerId)
-            if (idx >= 0) waitingPlayers.value.push(pausedPlayers.value.splice(idx, 1)[0])
-        }
     }
 
     // Pause a player in the waitingPlayers list
@@ -758,11 +326,7 @@
 
     function onDragEnd() {
         // List modifications by dragging can break the onCourt invariant so we always enforce it after a drag operation
-        waitingPlayers.value.forEach (p => { p.onCourt = 0; p.paused = false })
-        pausedPlayers.value.forEach  (p => { p.onCourt = 0; p.paused = false })
-        courts.value.forEach((c, idx) => {
-            c.players.forEach(p => p.onCourt = idx+1)
-        })
+        repairPlayerLists()
         markStateChange()
     }
 
@@ -777,9 +341,9 @@
     function addParticipant() {
         if (!newPlayer.value.name.length) return
         
-        players.push(newPlayer.value);
+        adm.players.push(newPlayer.value);
         playersToLocalStorage();
-        waitingPlayers.value.push(newPlayer.value);
+        adm.waiting.push(newPlayer.value);
         hideAddParticipant()
     }
 
@@ -804,158 +368,15 @@
         markStateChange()
     }
 
-    function updateSessionState(undoOption : UndoOption = UndoOption.DoNothing) {
-        type PlayerId = string | [ string, number ]
-        type CourtPlayer = [ PlayerId, string ]
-        type CourtState = { s: string, p: CourtPlayer[] }
-        let state = {
-            w: [] as PlayerId[],    // Waiting players
-            p: [] as PlayerId[],    // Paused players
-            c: [] as CourtState[],  // On court players (with to-be-paused/gone state)
-        }
-        waitingPlayers.value.forEach( e => state.w.push(e.link ? [e.playerId, e.link] : e.playerId))
-        pausedPlayers.value.forEach(  e => state.p.push(e.link ? [e.playerId, e.link] : e.playerId))
-        // A court record consists of a state character ('p' paused, '2' double, '1' single), followed by an array of 2-entry player arrays:
-        // One player array consists of the player ID, followed by the state, 'g' gone, 'p' to-be-paused, '-' normal/active
-        // If the player is linked then instead of a player ID string a 2-element array if player ID & link number is used
-        courts.value.forEach( (c) => {
-            let record = { s: c.paused ? 'p' : c.isDouble ? '2' : '1', p: [] as CourtPlayer[] };
-            c.players.forEach(p => record.p.push([p.link ? [p.playerId, p.link] : p.playerId, !p.participating ? 'g' : p.paused ? 'p' : '-']))
-            state.c.push(record)
-        })
-        if (undoOption === UndoOption.DoNothing) {
-            disableUndo.value = true
-        }
-        else if (undoOption == UndoOption.Make) {
-            undoString = stateString
-            disableUndo.value = false
-        }   // Third option "Keep" -> no action
-        stateString = JSON.stringify(state)
-        localStorage.setItem('state', stateString)
-    }
-
-    function resetSessionState() {
-        selectedPlayer.value = null
-        waitingPlayers.value = []
-        pausedPlayers.value = []
-        courts.value.forEach(c => {
-            c.isDouble = true
-            c.paused = false
-            c.players = []
-        })
-        players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } )
-        playerLinks = []
-    }
-
-    function restoreSessionStateTo(stateString : string) {
-        resetSessionState()
-        try {
-            let oldState = JSON.parse(stateString)
-            if (!oldState)                        throw new Error("Old state not found");
-            let usedIds : {[key:  string] : boolean } = {};
-            const getPlayerWithId = (x : any) => {
-                let id = ""
-                let link = undefined
-                if (typeof(x) == 'object') {
-                    if (typeof(x[0]) != 'string') throw new Error("ID name part is not 'string'")
-                    if (typeof(x[1]) != 'number') throw new Error("ID type link part not 'number'")
-                    link = x[1]
-                    id = x[0] as string
-                }
-                else if (typeof(x) != 'string')   throw new Error("ID type is not 'string'")
-                else id = x as string
-
-                if (usedIds[id] !== undefined)   throw new Error(`ID ${id} is used twice`)
-                usedIds[id] = true
-                let p = players.find(e => e.playerId === id)
-                if (p === undefined)             throw new Error(`ID ${id} is not a known player`)
-                p.participating = true
-                if (link) p.link = link
-                return p
-            }
-            oldState.w.forEach( (id : any) => waitingPlayers.value.push(getPlayerWithId(id)) )
-            oldState.p.forEach( (id : any) => pausedPlayers.value.push( getPlayerWithId(id)) )
-            if (oldState.c.length != courts.value.length) throw new Error(`Nr of courts doesn't match`)
-            oldState.c.forEach( (c : any, idx : number) => {
-                let courtState = c.s;
-                if ((courtState.length != 1) || !"p21".includes(courtState)) throw new Error(`Invalid court state '${courtState}'`)
-                if ((courtState == 'p') && (c.p.length != 0)) throw new Error("Paused court contained players")
-                courts.value[idx].paused = (courtState === 'p')
-                courts.value[idx].isDouble = (courtState !== '1')
-                c.p.forEach( (rec : any) => {
-                    if (rec.length != 2)        throw new Error("Player on court record length is not 2")
-                    let id = rec[0]
-                    let playerState = rec[1]
-                    if (typeof(playerState) != 'string') throw new Error("On-court player state type is not 'string'")
-                    if ((playerState.length != 1) || !"gp-".includes(playerState)) throw new Error("Invalid on-court player state")
-                    let p = getPlayerWithId(id)
-                    courts.value[idx].players.push(p)
-                    p.paused = (playerState === "p")
-                    p.participating = (playerState !== "g")
-                    p.onCourt = idx+1
-                })
-            })
-            rebuildPlayerLinks(players)
-            console.log("Restored previous session state")
-            updateSessionState()
-        }
-        catch (e)
-        {
-            doAlert('Probleem', `De vorige sessiestatus kon niet worden hersteld\n'${e}'`)
-            resetSessionState()
-        }
-    }
-
     function restoreOldSessionState() {
-        restoreSessionStateTo(localStorage.getItem('old_state') || "")
+        restoreOldState(doAlert)
     }
 
     function doUndo() {
-        if (disableUndo.value) return;
-        if (undoString) restoreSessionStateTo(undoString)
+        undo(doAlert);
         markStateChange();
     }
 
-    function reloadSettings() {
-        try {
-            let stringData = localStorage.getItem('settings')
-            if (stringData === null)
-            {
-                settingsData.courtFlash = false;
-                settingsData.messageBar = false;
-                settingsData.newMessageEffect = false;
-                settingsData.barMessages = [];
-                return;
-            }
-            let oldSettings = JSON.parse(stringData)
-            if (typeof(oldSettings.courtFlash) == 'boolean') settingsData.courtFlash = oldSettings.courtFlash;
-            if (typeof(oldSettings.messageBar) == 'boolean') settingsData.messageBar = oldSettings.messageBar;
-            if (typeof(oldSettings.newMessageEffect) == 'boolean') settingsData.newMessageEffect = oldSettings.newMessageEffect;
-            if (typeof(oldSettings.barMessages) == 'object' && typeof(oldSettings.barMessages.length) == 'number')
-            {
-                settingsData.barMessages = oldSettings.barMessages;
-                (document.getElementById("txtBarMessages") as HTMLTextAreaElement).value = settingsData.barMessages.join('\n')
-            }
-            console.log("Restored settings")
-        }
-        catch (e)
-        {
-            doAlert('Probleem', `Kon oude instellingen niet teruglezen\n'${e}'`)
-        }
-    }
-
-    function restoreOptions() {
-        hideSettings()
-        reloadSettings()
-    }
-
-    function saveOptions() {
-        hideSettings()
-        let lines = (document.getElementById("txtBarMessages") as HTMLTextAreaElement).value.split('\n')
-        settingsData.barMessages = lines.map(x => x.trim()).filter((s) => s != "")
-        localStorage.setItem('settings', JSON.stringify(settingsData))
-        if (settingsData.barMessages.length == 0) settingsData.messageBar = false
-    }
 
     function doFlashAnimation(target : HTMLElement) {
         for (let a of target.getAnimations()) a.cancel();
@@ -984,7 +405,7 @@
                 <h4 class="title">Aangemelde spelers</h4>
                 <input type="text" id="barcode" v-model="barcode" @keyup.enter="addNewPlayer" :tabindex="mainAllowFocus">
                 <div class="participants">
-                    <draggable class="draggable-list" :list="waitingPlayers" group="participants" itemKey="playerId" ghostClass='ghost'
+                    <draggable class="draggable-list" :list="adm.waiting" group="participants" itemKey="playerId" ghostClass='ghost'
                     @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                         <template #item="{ element }">
                             <div class="dragClick" :class="playerClass(element, true)">
@@ -1004,7 +425,7 @@
                 <!-- Note if you don't use the name 'element' then it won't work -->
                 <div class="paused-section">
                     <h4 class="title">Spelers in pauze</h4>
-                    <draggable class="draggable-list" :list="pausedPlayers" group="participants" itemKey="playerId" ghostClass='ghost'
+                    <draggable class="draggable-list" :list="adm.paused" group="participants" itemKey="playerId" ghostClass='ghost'
                     @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                         <template #item="{ element }">
                             <div class="dragClick" :class="playerClass(element, true)">
@@ -1027,8 +448,8 @@
                 <div id="buttonBar" class="bar" :alarm="nfcAlarm">
                     <div class="buttons">
                         <button class="button is-primary" @click="togglePause()" v-html="paused ? 'Start rotatie': 'Pauzeer'" :tabindex="mainAllowFocus"></button>
-                        <button class="button is-primary" @click="doUndo()" :disabled="disableUndo" :tabindex="mainAllowFocus">Herstel</button>
-                        <button class="button is-primary" @click="toggleLinkMode()" v-html="linkMode ? 'Links klaar': 'Links bewerken'" :disabled="disableLinkMode" :tabindex="mainAllowFocus"></button>
+                        <button class="button is-primary" @click="doUndo()" :disabled="!adm.canUndo" :tabindex="mainAllowFocus">Herstel</button>
+                        <button class="button is-primary" @click="toggleLinkMode()" v-html="linkMode ? 'Links klaar': 'Links bewerken'" v-if="enableLinkMode" :tabindex="mainAllowFocus"></button>
                     </div>
                     <div id="nfc-error" :alarm="nfcAlarm">NFC error</div>
                     <div id=timerArea>
@@ -1038,7 +459,7 @@
                 </div>
     
                 <div class="courts">
-                    <div  v-bind:key="court.courtNr" class="court" v-for="court in courts">
+                    <div  v-bind:key="court.courtNr" class="court" v-for="court in adm.courts">
                         <div style="display: flex; justify-content: space-between">
                             <div @click="doCancelAnimations" :id="`courtTag_${court.courtNr}`" class="number">{{court.courtNr}}</div>
                             <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
@@ -1130,9 +551,9 @@
                     </div>
                     <section class="modal-card-body">
                         <div class="list">
-                                <div style="overflow:hidden" class="list-item" v-bind:key="player.playerId" v-for="player in players">
+                                <div style="overflow:hidden" class="list-item" v-bind:key="player.playerId" v-for="player in adm.players">
                                     <b>{{player.name}}</b> ({{player.playerId}})
-                                <span @click="deletePlayer(player)" style="float: right" class="button is-danger">verwijder</span>
+                                <span @click="askDeletePlayer(player)" style="float: right" class="button is-danger">verwijder</span>
                                 </div>
                         </div>
                     </section>
@@ -1173,44 +594,8 @@
                     </footer>
                 </div>
             </div>
-    
-            <div class="modal" :class="{'is-active': showSettings}">
-                <div class="modal-background"></div>
-                <div class="modal-card">
-                    <header class="modal-card-head">
-                        <p class="modal-card-title">Instellingen</p>
-                        <button @click="hideSettings()" class="delete" aria-label="close"></button>
-                    </header>
-                    <section class="modal-card-body">
-                        <div class="field">
-                            <div class="control">
-                                <label class="checkbox"><input type="checkbox" v-model="settingsData.courtFlash"> Knipperend baannummer</label>
-                            </div>
-                        </div>
-                        <div class="field">
-                            <div class="control">
-                                <label class="checkbox"><input type="checkbox" v-model="settingsData.messageBar"> Berichtenbalk</label>
-                            </div>
-                        </div>
-                        <div class="field">
-                            <label class="label">Berichtenlijst</label>
-                            <div class="control">
-                                <textarea id="txtBarMessages" class="textarea" placeholder="Berichten" rows="10"></textarea>
-                            </div>
-                        </div>
-                        <div class="field">
-                            <div class="control">
-                                <label class="checkbox"><input type="checkbox" v-model="settingsData.newMessageEffect"> Bericht update effect</label>
-                            </div>
-                        </div>
-                    </section>
-                    <footer class="modal-card-foot">
-                        <button @click="saveOptions()" class="button is-success">Ok</button>
-                        <button @click="restoreOptions()" class="button">Cancel</button>
-                    </footer>
-                </div>
-            </div>
         </div>
+        <SettingsModal :show="showSettings" :settings="settingsData" :alert-handler="doAlert" @hide-settings="showSettings=false"/>
         <NewsBar :text="newsBarText" :effect="settingsData.newMessageEffect" />
     </div>
 </template>
