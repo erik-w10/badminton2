@@ -455,6 +455,14 @@ function undo(alertHander: (title : string, msg : string) => void) {
     restoreSessionStateTo(undoString, alertHander)
 }
 
+function preserveOldState()
+{
+    let oldState = localStorage.getItem('state')
+    if (oldState) {
+        localStorage.setItem('old_state', oldState);
+    }
+}
+
 function restoreOldState(alertHander: (title : string, msg : string) => void)
 {
     restoreSessionStateTo(localStorage.getItem('old_state') || "", alertHander)
@@ -603,6 +611,7 @@ export {
     makePlayerActive,
     updateSessionState,
     undo,
+    preserveOldState,
     restoreOldState,
     clearCourt,
     assignParticipants

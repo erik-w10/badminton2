@@ -1,40 +1,52 @@
-import { reactive } from 'vue'
+import { reactive } from 'vue';
+import { ModalBase } from './modal_base';
+import { doAlert } from './basic_modals';
 
-interface SettingsData {
-    courtFlash: boolean;
-    messageBar: boolean;
-    newMessageEffect: boolean;
-    barMessages: string[];
-}
-let settingsData : SettingsData = reactive({ courtFlash: false, messageBar: false, newMessageEffect: false, barMessages: [] as string[] })
+interface ISettings {
+    show :              boolean,
+    courtFlash :        boolean,
+    messageBar :        boolean,
+    newMessageEffect :  boolean,
+    barMessages :       string[],
+    reload :    { () : void },
+    save :      { () : void },
+};
+class Settings extends ModalBase implements ISettings{
+    courtFlash : boolean = false;
+    messageBar : boolean = false;
+    newMessageEffect : boolean = false;
+    barMessages : string[] = [];
 
-function reloadSettings(alertHandler: (title : string, msg : string) => void) {
-    try {
-        let stringData = localStorage.getItem('settings')
-        if (stringData === null)
-        {
-            settingsData.courtFlash = false;
-            settingsData.messageBar = false;
-            settingsData.newMessageEffect = false;
-            settingsData.barMessages = [];
-            return;
+    reload() : void {
+        try {
+            let stringData = localStorage.getItem('settings');
+            if (stringData === null)
+            {
+                this.courtFlash = false;
+                this.messageBar = false;
+                this.newMessageEffect = false;
+                this.barMessages = [];
+                return;
+            }
+            let oldSettings = JSON.parse(stringData);
+            if (typeof(oldSettings.courtFlash) == 'boolean') this.courtFlash = oldSettings.courtFlash;
+            if (typeof(oldSettings.messageBar) == 'boolean') this.messageBar = oldSettings.messageBar;
+            if (typeof(oldSettings.newMessageEffect) == 'boolean') this.newMessageEffect = oldSettings.newMessageEffect;
+            if (typeof(oldSettings.barMessages) == 'object' && typeof(this.barMessages.length) == 'number') this.barMessages = oldSettings.barMessages;
+            console.log("Restored settings");
         }
-        let oldSettings = JSON.parse(stringData)
-        if (typeof(oldSettings.courtFlash) == 'boolean') settingsData.courtFlash = oldSettings.courtFlash;
-        if (typeof(oldSettings.messageBar) == 'boolean') settingsData.messageBar = oldSettings.messageBar;
-        if (typeof(oldSettings.newMessageEffect) == 'boolean') settingsData.newMessageEffect = oldSettings.newMessageEffect;
-        if (typeof(oldSettings.barMessages) == 'object' && typeof(oldSettings.barMessages.length) == 'number')
+        catch (e)
         {
-            settingsData.barMessages = oldSettings.barMessages;
-            (document.getElementById("txtBarMessages") as HTMLTextAreaElement).value = settingsData.barMessages.join('\n')
+            doAlert('Probleem', `Kon oude instellingen niet teruglezen\n'${e}'`);
         }
-        console.log("Restored settings")
     }
-    catch (e)
-    {
-        alertHandler('Probleem', `Kon oude instellingen niet teruglezen\n'${e}'`)
+    save() : void {
+        if (this.barMessages.length == 0) this.messageBar = false;
+        let toSave = {courtFlash : this.courtFlash, messageBar : this.messageBar, newMessageEffect : this.newMessageEffect, barMessages : this.barMessages};
+        localStorage.setItem('settings', JSON.stringify(toSave));
     }
-}
+};
 
-export type { SettingsData }
-export { settingsData, reloadSettings }
+let settings = reactive(new Settings);
+
+export { type ISettings, settings }

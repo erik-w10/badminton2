@@ -17,7 +17,7 @@
 
     const barIsEnabled = computed<boolean>(() => {
         let enabled = props.text.length > 0
-        let changed = (props.text.length != allNews.length) || props.text.some((x, idx) => (x != allNews[idx]))
+        let changed = (props.text.length != allNews.length) || props.text.some((x, idx) => (x != allNews[idx]) || (updateEffect != props.effect))
         if (changed) {
             stopNews()
             if (enabled) startNews(props.text, props.effect)

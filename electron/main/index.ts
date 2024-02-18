@@ -56,21 +56,18 @@ function installApplicationMenu(win : BrowserWindow) : void {
                 {
                     label:'Spelersbeheer',
                     click() {
-                        console.log('Spelersbeheer click');
                         win.webContents.send('player-admin');
                     }
                 },
                 {
                     label:'Herstel sessie',
                     click() {
-                        console.log('Restore session click');
                         win.webContents.send('restore-session');
                     }
                 },
                 {
                     label:'Instellingen',
                     click() {
-                        console.log('Settings click');
                         win.webContents.send('show-settings');
                     }
                 },

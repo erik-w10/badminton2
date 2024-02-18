@@ -12,7 +12,6 @@ export interface VoidCallback {
 }
 
 export interface IMyIpc {
-    loadPreferences:    () => Promise<void>,
     exportPlayers:      (jsonText : string) => void,
     importPlayers:      () => void,
     onImportData:       (callback : EventDataCallback) => void,
