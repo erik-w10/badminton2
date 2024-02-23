@@ -533,10 +533,10 @@
         justify-content: space-between;
     }
     #nfc-error{
-        Display: None;
+        display: None;
     }
     #nfc-error[alarm="Y"] {
-        Display: inline;
+        display: inline;
         justify-content: center;
         align-items: center;
         padding: 4px 120px;

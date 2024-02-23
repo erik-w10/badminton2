@@ -4,35 +4,28 @@ Please note that this project is based on the original project at:
 
 https://github.com/Feddman/badminton
 
-## Additional repe needed
+The latest rebuild of the program with Electron & Vue 3 & Vite was based on the scaffolding project:
 
-Unfortunatly pcsclite needs to be built from source.  Ensure version 1.0.0 is
-available int the pcsclite sub-directory.
+https://github.com/electron-vite/electron-vite-vue
 
-```
-git clone https://github.com/santigimeno/node-pcsclite.git pcsclite/
-(cd pcsclite && git checkout v1.0.0)
-```
 
 ## Project setup
+
 ```
 npm install
 ```
 
-### Compiles and hot-reloads for development
+### Compile and hot-reload for development
 ```
-npm run serve
+npm run dev
 ```
 
-### Compiles and minifies for production
+### Compile and minify for production
 ```
 npm run build
 ```
 
-### Lints and fixes files
-```
-npm run lint
-```
+### Documentation resources
 
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+* [Electron](https://www.electronjs.org/)
+* [Vue.js](https://vuejs.org/)

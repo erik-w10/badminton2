@@ -1,4 +1,4 @@
-import { xlsxParser } from './externals'
+import xlsxParser from 'xlsx-parse-json'
 import { reactive } from 'vue'
 
 // Player as persisted in local storage (without state)
