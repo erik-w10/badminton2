@@ -1,10 +1,11 @@
 <script setup lang="ts">
     import { computed } from 'vue';
-    import { Player, tagForLink } from './player_admin';
+    import { Player, tagForLink, currentLevel, levelCanPlay } from './player_admin';
 
     const props = defineProps<{
         player : Player,
         separator : boolean,
+        showLevel : boolean,
     }>();
     const emits = defineEmits<{'clicked': []}>();
 
@@ -17,6 +18,11 @@
         'plr-gone'      : !props.player.participating,
         'plr-paused'    :  props.player.participating && props.player.paused
     }));
+    const mClass = computed(() => ({
+        'levelOk'      : levelCanPlay.value[currentLevel(props.player)-1],
+        'levelBad'     : !levelCanPlay.value[currentLevel(props.player)-1]
+
+    }));
 
     // Get the link tag (or emtpy). Note that this function is accesible from Vue elements (tagForLink is not)
     function playerTag(player : Player) {
@@ -26,9 +32,12 @@
 
 <template>
     <div class="dragClick" :class="pClass">
-        <div class="labelParts">
-            <div>{{props.player.name}}</div>
-            <div class="player-tag">{{playerTag(props.player)}}</div>
+        <div class="labelParts" :class="{ makeRoom : props.showLevel }">
+            <div class="playerName">{{props.player.name}}</div>
+            <div class="playerTag">{{playerTag(props.player)}}</div>
+        </div>
+        <div class="levelParts" v-if="props.showLevel">
+            <div class="levelMask" :class="mClass">{{currentLevel(props.player)}}</div>
         </div>
         <div class=clickParts>
             <div class="dragHdl"></div>
@@ -51,11 +60,11 @@
         background: #B0C0B0;
     }
 
-    div.plr-gone > div.labelParts {
+    div.plr-gone > div.labelParts div.playerName {
         text-decoration: line-through;
     }
 
-    div.plr-paused > div.labelParts {
+    div.plr-paused > div.labelParts div.playerName{
         font-style: italic;
         color: gray;
     }
@@ -64,18 +73,55 @@
         margin-bottom: 12px !important;
     }
 
+    .dragClick {
+        position: relative; /* Use as reference for absolute positioning*/
+    }
+
+    .labelParts.makeRoom > div {
+        margin-left: 0.75em;
+    }
+
     .labelParts {
         padding: 0px;
         display: flex;
         justify-content: space-between;
     }
 
-    .labelParts .player-tag {
+    .labelParts .playerTag {
         font-weight: normal;
     }
 
-    .dragClick {
-        position: relative; /* Use as reference for absolute positioning*/
+    .levelParts {
+        position: absolute; /* Overlap with the entire parent div*/
+        top: 0px;
+        left: 0px;
+        height: 100%;
+        width: 100%;
+        padding: 0px;
+        display: flex;          /* Make child div centered*/
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .levelParts div.levelMask{
+        border-radius: 0 50% 50% 0;
+        height: 60%;
+        width: 1.25em;
+        color: #F0F0F0;
+        text-align: center;
+        padding-right: 0.25em;
+        font-weight: 900;
+        color: #A0A0A0;
+    }
+
+    .levelParts div.levelMask{
+        background: black;
+        opacity: 7%;
+    }
+
+    .waiting-section .levelParts div.levelMask.levelBad{
+        background: red;
+        opacity: 100%;
     }
 
     .clickParts {

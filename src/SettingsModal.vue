@@ -55,6 +55,16 @@
                         <label class="checkbox"><input type="checkbox" v-model="props.settings.newMessageEffect"> Bericht update effect</label>
                     </div>
                 </div>
+                <div class="field">
+                    <div class="control">
+                        <label class="checkbox"><input type="checkbox" v-model="props.settings.levelSeparation"> Niveau-afhankelijke veldtoekenning</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <label class="checkbox"><input type="checkbox" v-model="props.settings.levelIndication"> Niveau-indicatie</label>
+                    </div>
+                </div>
             </section>
             <footer class="modal-card-foot">
                 <button @click="doSave();$emit('close')" class="button is-success">Ok</button>

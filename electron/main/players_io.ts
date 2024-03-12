@@ -13,10 +13,10 @@ async function exportPlayers(event, jsonText)
     )
     if (pathInfo.canceled) return;
     let players = JSON.parse(jsonText);
-    let csvFile = ['"Naam","Spelernummer","Gender","Ranking"'];
+    let csvFile = ['"Naam","Spelernummer","Gender","Level"'];
     for(const p of players)
     {
-        csvFile.push(`"${p.name || ""}",${p.playerId || 0},"${p.gender || ""}",${p.ranking || 0}`)
+        csvFile.push(`"${p.name || ""}",${p.playerId || 0},"${p.gender || ""}",${p.level || 1}`)
     }
     writeFile(pathInfo.filePath, csvFile.join('\n') + '\n', 'utf8', () =>{
         console.log(`Wrote "${pathInfo.filePath}", ${csvFile.length} lines`);

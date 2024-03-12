@@ -11,7 +11,7 @@
     import { ModalBase } from './modal_base'
     import {type Player, type Court, repairPlayerLists, loadPlayers, playersToLocalStorage, handleImportData,
         togglePlayerPresence, clearSelectedPlayer, linkUpdate, linkedPlayer, makePlayerPaused, makePlayerActive, updateSessionState,
-        undo, preserveOldState, restoreOldState, clearCourt, assignParticipants, UndoOption} from './player_admin'
+        undo, preserveOldState, restoreOldState, clearCourt, assignParticipants, UndoOption, levelBasedCourtAssignment} from './player_admin'
     import adm from './player_admin'
     import { settings } from './settings'
     import { alert, doAlert, confirm, doConfirm } from './basic_modals'
@@ -21,6 +21,8 @@
     onMounted(() => {
         console.log('Starting');
         settings.reload();
+        levelBasedCourtAssignment(settings.levelSeparation);
+        showLevel.value = settings.levelIndication;
         loadPlayers();
         window.myIpc.onPlayerAdmin(() => {
             allPlayersList.show = true;
@@ -80,6 +82,7 @@
     let nfcAlarmTimerId : null|NodeJS.Timeout = null
     let allPlayersList = reactive(new ModalBase);
     let addPlayer = reactive(new ModalBase);
+    const showLevel = ref(true);
     
     const enableLinkMode = ref(false)
 
@@ -305,7 +308,10 @@
     }
 
     function hideSettings() {
-        markStateChange()
+        levelBasedCourtAssignment(settings.levelSeparation);
+        showLevel.value = settings.levelIndication;
+        playersToLocalStorage();
+        markStateChange();
     }
 
     function restoreOldSessionState() {
@@ -347,7 +353,7 @@
                     <draggable class="draggable-list" :list="adm.waiting" group="participants" itemKey="playerId" ghostClass='ghost'
                     @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                         <template #item="{ element }">
-                            <PlayerTile :player="element" @clicked="waitingPlayerClick(element)" :separator="true" />
+                            <PlayerTile :player="element" @clicked="waitingPlayerClick(element)" :separator="true" :showLevel="showLevel"/>
                         </template>
                     </draggable>
                 </div>
@@ -357,7 +363,7 @@
                     <draggable class="draggable-list" :list="adm.paused" group="participants" itemKey="playerId" ghostClass='ghost'
                     @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                         <template #item="{ element }">
-                            <PlayerTile :player="element" @clicked="pausedPlayerClick(element)" :separator="true" />
+                            <PlayerTile :player="element" @clicked="pausedPlayerClick(element)" :separator="true" :showLevel="showLevel"/>
                         </template>
                     </draggable>
                 </div>
@@ -388,7 +394,7 @@
                             <draggable class="draggable-court" :list="court.players" group="participants" itemKey="playerId" ghostClass='ghost'
                             :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">
                                 <template #item="{ element }">
-                                    <PlayerTile :player="element" @clicked="playerOnCourtClick(element, court)" :separator="false" />
+                                    <PlayerTile :player="element" @clicked="playerOnCourtClick(element, court)" :separator="false"  :showLevel="showLevel"/>
                                 </template>
                             </draggable>
                             <div class="list-item training" v-else>TRAININGSBAAN </div>

@@ -1,12 +1,13 @@
 import xlsxParser from 'xlsx-parse-json'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import { Picker } from './picker'
 
 // Player as persisted in local storage (without state)
 interface KnownPlayer {
     name:           string;
     playerId:       string;
     gender:         string;
-    ranking:        string;
+    level:          number;
 }
 // Player as used run-time to store identity & state
 interface Player extends KnownPlayer {
@@ -30,7 +31,7 @@ const playerTemplate : Player = {
     name: "",
     playerId: "",
     gender: "",
-    ranking: "",
+    level: 1,
     // State (not persisted):
     participating: true,
     paused: false,
@@ -51,8 +52,7 @@ const labelMap : LabelMap = {
     "Speler nummer":    "playerId",
     "gender":           "gender",
     "Gender":           "gender",
-    "ranking":          "ranking",
-    "Ranking":          "ranking",
+    "Level":            "level"
 }
 // Format: an entry is null (not used) or [ player1, player2 ] i.e. references to both players structures
 // The array index + 1 is stored in the player link field and corresponds to a tag character (a digit in a circle starting at (1))
@@ -128,8 +128,14 @@ function loadPlayers()
         localStorage.setItem('participants', "[]");
     }
     adm.players = JSON.parse(localStorage.getItem('participants') as string);
-    adm.players.forEach( p => { let x = p as any; if (x.speelNummer !== undefined) { p.playerId = x.speelNummer; delete x.speelNummer; }})
+    adm.players.forEach( p => {
+         let x = p as any;
+         if (x.speelNummer !== undefined) { p.playerId = x.speelNummer; delete x.speelNummer; }
+         if (x.ranking     !== undefined) delete x.ranking;
+         if (x.level       === undefined) x.level = 1;
+    })
     adm.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link); } )
+    countLevels();
 }
 
 function playersToLocalStorage() {
@@ -139,7 +145,7 @@ function playersToLocalStorage() {
         name:        p.name,
         playerId:    p.playerId,
         gender:      p.gender,
-        ranking:     p.ranking
+        level:       p.level
     }))
     localStorage.setItem('participants', JSON.stringify(r));
 }
@@ -147,8 +153,8 @@ function playersToLocalStorage() {
 function isValidGender(gen : any) {
     return (typeof(gen) === 'string') && (gen.length == 1) && "vmg".includes(gen);
 }
-function isValidRank(rank : any) {
-    return (typeof(rank) === 'string') && (rank.length == 1) && "123".includes(rank);
+function isValidLevel(level : number) {
+    return (level >= 1) && (level <= 5) && (level == Math.trunc(level));
 }
 
 function mapImportFields(inp : any[]) : { plrs: Player[], warnings: string[] }
@@ -179,7 +185,8 @@ function mapImportFields(inp : any[]) : { plrs: Player[], warnings: string[] }
                 if (o.name.trim() !== "")
                 {
                     if (!isValidGender(o.gender)) o.gender = 'g'
-                    o.ranking = isValidRank(o.ranking) ? Number(o.ranking) : 0;
+                    o.level = Number.parseFloat(o.level);
+                    if (!isValidLevel(o.level)) o.level = 1;
                     o.participating = false;
                     o.paused = false;
                     o.onCourt = 0;
@@ -228,6 +235,7 @@ function handleImportData(array : any, reporter: (warnings: string[]) => void )
         });
         rebuildPlayerLinks(adm.players)
         if (warnings.length > 0) reporter(warnings);
+        countLevels();
     });
 }
 
@@ -246,6 +254,15 @@ function deletePlayer (player : Player)
     adm.courts.forEach( c => c.players = c.players.filter(filter) );
     adm.players = adm.players.filter(filter);
     playersToLocalStorage();
+    countLevels();
+}
+
+function updatePlayerLevel (player : Player, level : number)
+{
+    if (!isValidLevel(level) || (player.level == level)) return;
+    player.level = level;
+    playersToLocalStorage();
+    countLevels();
 }
 
 function togglePlayerPresence(p : Player) {
@@ -316,6 +333,11 @@ function linkedPlayer(player : Player) {
     return link[1-idx]
 }
 
+function currentLevel(player : Player) {
+    let other = linkedPlayer(player);
+    return other === null ? player.level : Math.min(player.level, other.level);
+}
+
 // Make a paricipating player paused, whatever it current status is (paused already, waiting or on court)
 function makePlayerPaused(player : Player) {
     if (player.onCourt != 0) {
@@ -326,6 +348,7 @@ function makePlayerPaused(player : Player) {
         let idx = adm.waiting.findIndex(e => e.playerId === player.playerId)
         if (idx >= 0) adm.paused.push(adm.waiting.splice(idx, 1)[0])
     }
+    countLevels();
 }
 
 // Make a paricipating player active (non-paused), whatever it current status is (paused, already waiting or on court)
@@ -338,6 +361,7 @@ function makePlayerActive(player : Player) {
         let idx = adm.paused.findIndex(e => e.playerId === player.playerId)
         if (idx >= 0) adm.waiting.push(adm.paused.splice(idx, 1)[0])
     }
+    countLevels();
 }
 
 enum UndoOption {
@@ -376,6 +400,7 @@ function updateSessionState(undoOption : UndoOption = UndoOption.DoNothing) {
     }   // Third option "Keep" -> no action
     stateString = JSON.stringify(state)
     localStorage.setItem('state', stateString)
+    countLevels();
 }
 
 function resetSessionState() {
@@ -389,6 +414,7 @@ function resetSessionState() {
     })
     adm.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } )
     playerLinks = []
+    countLevels();
 }
 
 function restoreSessionStateTo(stateString : string, alertHander: (title : string, msg : string) => void) {
@@ -496,6 +522,12 @@ function clearCourt(c : Court) {
     c.players = [];
 }
 
+let picker = new Picker(false);
+function levelBasedCourtAssignment(enable : boolean)
+{
+    picker = new Picker(enable);
+}
+
 // fills the courts with participants
 function assignParticipants(onCourtAssigment: (courtNr : number) => void) {
     let doUpdateState = false
@@ -543,43 +575,25 @@ function assignParticipants(onCourtAssigment: (courtNr : number) => void) {
                         ready.push(p)
                     }
                 }
-                let playersNeeded = capacity
-                if (playersNeeded <= ready.length) {
-                    // Assign pairs of linked or pairs of not-linked players
-                    while (playersNeeded && playersNeeded <= ready.length) {
-                        let toAdd : Player[] = []
-                        let p1 = ready.shift() as Player      // first waiting player to consider
-                        if (!p1.link) {
-                            // Not-linked player, find second not-linked player
-                            let idx = ready.findIndex(e => !e.link)
-                            if (idx < 0) {
-                                // Sadly there is no second not-linked player to make a pair, the not-linked player remains waiting
-                                notYet.unshift(p1)
+                if (capacity <= ready.length) {
+                    picker.start(!court.isDouble);
+                    for (let i = 0;  i < ready.length;  ++i) {
+                        const withBuddy = !!ready[i].link;
+                        let level = ready[i].level;
+                        if (withBuddy && (level > ready[i+1].level)) level = ready[i+1].level;
+                        if (picker.check(i, withBuddy, level)) {
+                            let indices = picker.result();
+                            court.players = ready.filter((_1, index) =>  indices.includes(index));
+                            ready =         ready.filter((_1, index) => !indices.includes(index));
+                            for (let p of court.players) {
+                                p.onCourt = court.courtNr;
+                                p.paused = false;
                             }
-                            else {
-                                // Hurray we can add two not-linked players to the field
-                                toAdd = [p1, ready.splice(idx, 1)[0]]
-                            }
+                            doUpdateState = true;
+                            onCourtAssigment(court.courtNr);
+                            break;
                         }
-                        else {
-                            if ((ready.length < 1) || (ready[0].link !== p1.link)) throw new Error('Dur zit een bug hier!')
-                            toAdd = [p1, ready.shift() as Player]
-                        }
-                        toAdd.forEach( p => {
-                            p.onCourt = court.courtNr
-                            p.paused = false
-                            court.players.push(p)
-                            doUpdateState = true
-                            --playersNeeded
-                        })
-                    }
-                    if (playersNeeded) {
-                        console.log("Weird, this should not be possible ?")
-                        clearCourt(court)
-                    }
-                    else
-                    {
-                        onCourtAssigment(court.courtNr)
+                        if (withBuddy) ++i;
                     }
                 }
                 adm.waiting = ready.concat(notYet)
@@ -589,6 +603,37 @@ function assignParticipants(onCourtAssigment: (courtNr : number) => void) {
     if (doUpdateState) updateSessionState(UndoOption.Keep)
 }
 
+/** Array of flags to indicate if a level can play, note that the array index should be level-1 */
+const levelCanPlay = ref(Array(5).fill(false));
+function countLevels()
+{
+    let levelCounts = Array(5).fill(0);
+    adm.waiting.forEach((p) => { ++levelCounts[currentLevel(p)-1]; });
+    adm.courts.forEach((c) => {
+        c.players.forEach((p) => { if (p.participating && !p.paused) ++levelCounts[currentLevel(p)-1]; })
+    });
+    let levelGroupCounts = Array(3).fill(0);
+    for (let l=0; l<3; ++l) levelGroupCounts[0] += levelCounts[l];
+    for (let l=1; l<4; ++l) levelGroupCounts[1] += levelCounts[l];
+    for (let l=2; l<5; ++l) levelGroupCounts[2] += levelCounts[l];
+    let canSingle = adm.courts.some((c) => !c.paused && !c.isDouble);
+    let require = canSingle ? 2 : 4;
+    let levelGroupCanPlay = Array(3).fill(false);
+    for (let g = 0;  g < 3;  ++g) levelGroupCanPlay[g] = levelGroupCounts[g] >= require;
+    if (picker.nrLevels() === 1)
+    {
+        let canPlay = levelCounts.reduce((acc : number, c) => acc + c) > require;
+        levelCanPlay.value.fill(canPlay);
+    }
+    else
+    {
+        levelCanPlay.value[0] = levelGroupCanPlay[0];
+        levelCanPlay.value[1] = levelGroupCanPlay[0] || levelGroupCanPlay[1];
+        levelCanPlay.value[2] = levelGroupCanPlay[0] || levelGroupCanPlay[1] || levelGroupCanPlay[2];
+        levelCanPlay.value[3] =                         levelGroupCanPlay[1] || levelGroupCanPlay[2];
+        levelCanPlay.value[4] =                                                 levelGroupCanPlay[2];
+    }
+}
 
 export type {Player, Court, Admin}
 export default adm;
@@ -598,15 +643,17 @@ export {
     repairPlayerLists,
     loadPlayers,
     playersToLocalStorage,
-    isValidGender, isValidRank,
+    isValidGender, isValidLevel,
     importPlayers, handleImportData,
     exportPlayers,
     deletePlayer,
+    updatePlayerLevel,
     togglePlayerPresence,
     clearSelectedPlayer,
     linkUpdate,
     tagForLink,
     linkedPlayer,
+    currentLevel,
     makePlayerPaused,
     makePlayerActive,
     updateSessionState,
@@ -614,5 +661,7 @@ export {
     preserveOldState,
     restoreOldState,
     clearCourt,
-    assignParticipants
+    assignParticipants,
+    levelBasedCourtAssignment,
+    levelCanPlay
 }
