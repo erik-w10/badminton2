@@ -9,10 +9,7 @@
     import ConfirmModal from './ConfirmModal.vue'
     import AllPlayersListModal from './AllPlayersList.vue'
     import { ModalBase } from './modal_base'
-    import {type Player, type Court, repairPlayerLists, loadPlayers, playersToLocalStorage, handleImportData,
-        togglePlayerPresence, clearSelectedPlayer, linkUpdate, linkedPlayer, makePlayerPaused, makePlayerActive, updateSessionState,
-        undo, preserveOldState, restoreOldState, clearCourt, assignParticipants, UndoOption, levelBasedCourtAssignment} from './player_admin'
-    import adm from './player_admin'
+    import {default as adm, type Player, type Court, UndoOption} from './player_admin'
     import { settings } from './settings'
     import { alert, doAlert, confirm, doConfirm } from './basic_modals'
     import { anyModals } from './modal_base'
@@ -21,9 +18,9 @@
     onMounted(() => {
         console.log('Starting');
         settings.reload();
-        levelBasedCourtAssignment(settings.levelSeparation);
+        adm.levelBasedCourtAssignment(settings.levelSeparation);
         showLevel.value = settings.levelIndication;
-        loadPlayers();
+        adm.loadPlayers();
         window.myIpc.onPlayerAdmin(() => {
             allPlayersList.show = true;
             stopTimer()
@@ -59,12 +56,9 @@
             handleNfcError(msg)
         })
         window.myIpc.onImportData((_event : Event, data : any[]) => {
-            handleImportData(data, (warnings : string[]) => { doAlert("Meldingen", warnings.join('\n')) })
+            adm.handleImportData(data, (warnings : string[]) => { doAlert("Meldingen", warnings.join('\n')) })
         })
-        for (let i = 0; i < amountOfCourts; i++) {
-            addCourt();
-        }
-        preserveOldState()
+        adm.preserveOldState()
         startTimer()
     })
 
@@ -83,7 +77,7 @@
     let allPlayersList = reactive(new ModalBase);
     let addPlayer = reactive(new ModalBase);
     const showLevel = ref(true);
-    
+
     const enableLinkMode = ref(false)
 
     // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
@@ -104,8 +98,8 @@
     }
 
     function toggleLinkMode() {
-        linkMode.value = !linkMode.value
-        clearSelectedPlayer();
+        linkMode.value = !linkMode.value;
+        adm.clearSelectedPlayer();
     }
 
     function toggleDouble(court : Court) {
@@ -120,7 +114,7 @@
     function checkListMove(evt : any) : boolean {
         let to_court = (evt.to as HTMLElement).classList.contains('draggable-court')
         if ((!paused.value && to_court) || !evt.draggedContext.element.participating) return false;
-        updateSessionState()
+        adm.updateSessionState();
         return true;
     }
 
@@ -130,7 +124,7 @@
         const courtAssignmentHandler = (courtNr : number) => {
                 if (settings.courtFlash) doFlashAnimation(courtTags.value[courtNr-1])
             }
-        if (!paused.value) assignParticipants(courtAssignmentHandler)
+        if (!paused.value) adm.assignParticipants(courtAssignmentHandler)
     }
 
     function startTimer() {
@@ -168,18 +162,8 @@
         if (!anyModals() && !paused.value) {
             startTimer()
         }
-        updateSessionState(undoOption);
+        adm.updateSessionState(undoOption);
         barcodeInput.value?.focus();
-    }
-
-    function addCourt() {
-        let court = {
-            courtNr: adm.courts.length + 1,
-            isDouble: true,
-            paused: false,
-            players: []
-        }
-        adm.courts.push(court);
     }
 
     // checks out a court
@@ -189,7 +173,7 @@
             markStateChange()
         }
         else {
-            clearCourt(court)
+            adm.clearCourt(court)
             markStateChange(UndoOption.Make)
         }
     }
@@ -197,18 +181,18 @@
     // Toggle the pause-requested state of a player on a court
     function togglePlayerPause(player : Player, court : Court) {
         if (player.onCourt != court.courtNr) console.log("togglePausePlayer invariant problem");
-        let linked = linkedPlayer(player);
+        let linked = adm.linkedPlayer(player);
         if (player.paused)
         {
-            makePlayerActive(player);
-            if (linked) makePlayerActive(linked);
+            adm.makePlayerActive(player);
+            if (linked) adm.makePlayerActive(linked);
         }
         else
         {
-            makePlayerPaused(player);
-            if (linked) makePlayerPaused(linked);
+            adm.makePlayerPaused(player);
+            if (linked) adm.makePlayerPaused(linked);
         }
-        updateSessionState();
+        adm.updateSessionState();
         barcodeInput.value?.focus();
     }
 
@@ -230,13 +214,13 @@
 
     // checks in or checks out player
     function changePlayerStatus(player : Player) {
-        togglePlayerPresence(player)
+        adm.togglePlayerPresence(player)
         barcode.value = null;
     }
 
     function waitingPlayerClick(player : Player) {
         if (linkMode.value) {
-            linkUpdate(player, doAlert)
+            adm.linkUpdate(player, doAlert)
         }
         else {
             pauseWaitingPlayer(player)
@@ -245,7 +229,7 @@
 
     function pausedPlayerClick(player : Player) {
         if (linkMode.value) {
-            linkUpdate(player, doAlert)
+            adm.linkUpdate(player, doAlert)
         }
         else {
             resumePausedPlayer(player)
@@ -254,7 +238,7 @@
 
     function playerOnCourtClick(player : Player, court : Court) {
         if (linkMode.value) {
-            linkUpdate(player, doAlert)
+            adm.linkUpdate(player, doAlert)
         }
         else {
             togglePlayerPause(player, court)
@@ -266,30 +250,30 @@
         stopTimer();
         doConfirm('Pauzeren', `${player.name} pauze nemen?`, (result) => {
             if (result == 1) {
-                makePlayerPaused(player)
-                let linked = linkedPlayer(player)
-                if (linked) makePlayerPaused(linked)
+                adm.makePlayerPaused(player);
+                let linked = adm.linkedPlayer(player);
+                if (linked) adm.makePlayerPaused(linked);
             }
-            markStateChange()
+            markStateChange();
         })
     }
 
     // Resume a player in the pausedPlayers list
     function resumePausedPlayer(player : Player) {
-        makePlayerActive(player)
-        let linked = linkedPlayer(player)
-        if (linked) makePlayerActive(linked)
-        markStateChange()
+        adm.makePlayerActive(player);
+        let linked = adm.linkedPlayer(player);
+        if (linked) adm.makePlayerActive(linked);
+        markStateChange();
     }
 
     function onDragStart() {
-        stopTimer()
+        stopTimer();
     }
 
     function onDragEnd() {
         // List modifications by dragging can break the onCourt invariant so we always enforce it after a drag operation
-        repairPlayerLists()
-        markStateChange()
+        adm.repairPlayerLists();
+        markStateChange();
     }
 
     function resetBarcode() {
@@ -300,26 +284,27 @@
     // Adds new player from the new player modal.
     function addNewPlayer(p : Player) {
         if (!p.name.length) return;
-        
+
         adm.players.push(p);
-        playersToLocalStorage();
+        adm.playersToLocalStorage();
+        p.participating = true;
         adm.waiting.push(p);
         resetBarcode();
     }
 
     function hideSettings() {
-        levelBasedCourtAssignment(settings.levelSeparation);
+        adm.levelBasedCourtAssignment(settings.levelSeparation);
         showLevel.value = settings.levelIndication;
-        playersToLocalStorage();
+        adm.playersToLocalStorage();
         markStateChange();
     }
 
     function restoreOldSessionState() {
-        restoreOldState(doAlert)
+        adm.restoreOldState(doAlert)
     }
 
     function doUndo() {
-        undo(doAlert);
+        adm.undo(doAlert);
         markStateChange();
     }
 
@@ -337,7 +322,7 @@
         }
         target.animate(keyFrames, options)
     }
-    
+
     function doCancelAnimations(evt : Event) {
         for (let a of (evt.target as HTMLElement).getAnimations()) a.cancel();
     }
@@ -368,7 +353,7 @@
                     </draggable>
                 </div>
             </div>
-    
+
             <div class="courts-section">
                 <div id="buttonBar" class="bar">
                     <div class="buttons">
@@ -382,7 +367,7 @@
                         <div ref="timerBar" class="timBar"></div>
                     </div>
                 </div>
-    
+
                 <div class="courts">
                     <div  v-bind:key="court.courtNr" class="court" v-for="court in adm.courts">
                         <div style="display: flex; justify-content: space-between">

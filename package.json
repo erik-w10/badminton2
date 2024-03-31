@@ -15,7 +15,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder",
     "preview": "vite preview",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "test": "node --test --import tsx test/*.ts"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.4.1",
@@ -32,6 +33,7 @@
   },
   "dependencies": {
     "pcsclite": "^1.0.1",
+    "tsx": "^4.7.1",
     "vuedraggable": "^4.1.0",
     "xlsx-parse-json": "^3.1.1"
   }

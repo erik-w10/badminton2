@@ -1,7 +1,6 @@
 <script setup lang="ts">
     import { computed, reactive, ref } from 'vue';
-    import { type Player, importPlayers, exportPlayers, deletePlayer, updatePlayerLevel } from './player_admin';
-    import adm from './player_admin'
+    import { type Player, default as adm } from './player_admin';
     import { doConfirm } from './basic_modals';
     import { type IModalBase } from './modal_base';
     import SetLevelModal from './SetLevelModal.vue';
@@ -21,7 +20,7 @@
     function askDeletePlayer(player : Player) {
         doConfirm("", "Weet je zeker dat je deze speler wilt verwijderen?", (result) => {
             if (result === 1) {
-                deletePlayer(player);
+                adm.deletePlayer(player);
             }
         })
     }
@@ -32,7 +31,16 @@
     }
 
     function updateLevel(newLevel : number) {
-        updatePlayerLevel(updatedPlayer.value as Player, newLevel);
+        adm.updatePlayerLevel(updatedPlayer.value as Player, newLevel);
+    }
+
+    function doImport() {
+        window.myIpc.importPlayers();
+    }
+
+    function doExport() {
+        let playersJson = adm.exportPlayers();
+        if (playersJson !== null) window.myIpc.exportPlayers(playersJson);
     }
 </script>
 
@@ -42,8 +50,8 @@
         <div class="modal-card">
             <div class="modal-card-head">
                 <h3>Spelerslijst</h3>
-                <button @click="exportPlayers" :tabindex="allowFocus">spelers exporteren</button>
-                <button @click="importPlayers" :tabindex="allowFocus">spelers importeren</button>
+                <button @click="doExport" :tabindex="allowFocus">spelers exporteren</button>
+                <button @click="doImport" :tabindex="allowFocus">spelers importeren</button>
             </div>
             <section class="modal-card-body">
                 <div class="list">

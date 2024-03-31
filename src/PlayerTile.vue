@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { computed } from 'vue';
-    import { Player, tagForLink, currentLevel, levelCanPlay } from './player_admin';
+    import { default as adm, Player, tagForLink } from './player_admin';
 
     const props = defineProps<{
         player : Player,
@@ -19,8 +19,8 @@
         'plr-paused'    :  props.player.participating && props.player.paused
     }));
     const mClass = computed(() => ({
-        'levelOk'      : levelCanPlay.value[currentLevel(props.player)-1],
-        'levelBad'     : !levelCanPlay.value[currentLevel(props.player)-1]
+        'levelOk'      : adm.levelCanPlay[adm.currentLevel(props.player)-1],
+        'levelBad'     : !adm.levelCanPlay[adm.currentLevel(props.player)-1]
 
     }));
 
@@ -37,7 +37,7 @@
             <div class="playerTag">{{playerTag(props.player)}}</div>
         </div>
         <div class="levelParts" v-if="props.showLevel">
-            <div class="levelMask" :class="mClass">{{currentLevel(props.player)}}</div>
+            <div class="levelMask" :class="mClass">{{adm.currentLevel(props.player)}}</div>
         </div>
         <div class=clickParts>
             <div class="dragHdl"></div>

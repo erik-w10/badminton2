@@ -1,6 +1,7 @@
 <script setup lang="ts">
     import { computed, onMounted, ref } from 'vue'
-    import { Player, playerTemplate, isValidGender, isValidLevel } from './player_admin';
+    import {Player } from './player'
+    import { isValidGender, isValidLevel } from './player_admin';
     import { type IModalBase } from './modal_base'
     import LevelButtons from './LevelButtons.vue'
 
@@ -10,7 +11,7 @@
     }>()
     const emits = defineEmits<{'add': [p : Player], 'cancel': []}>()
 
-    const newPlayer = ref<Player>(Object.assign({}, playerTemplate));
+    const newPlayer = ref<Player>(new Player);
 
     const validNewPlayer = computed<boolean>(() => {
         return (newPlayer.value.name.length > 0)
@@ -24,7 +25,7 @@
     function getPlayer() : Player
     {
         let p = newPlayer.value;
-        newPlayer.value = Object.assign({}, playerTemplate);
+        newPlayer.value = new Player;
         return p;
     }
 
