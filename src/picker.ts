@@ -12,6 +12,11 @@ class LevelPicker
         this.maxLevel = maxLevel;
     }
 
+    supportsLevel(level :number)
+    {
+        return (level >= this.minLevel) && (level <= this.maxLevel);
+    }
+
     check(startIdx : number, withBuddy : boolean, level : number) : boolean
     {
         let space = this.target - this.indices.length;
@@ -49,10 +54,11 @@ class Picker
         }
     }
 
-    check(startIdx : number, withBuddy : boolean, level : number)
+    check(startIdx : number, withBuddy : boolean, level : number, requireLevel : number|null)
     {
         for (let i = 0;  i < this.pickers.length;  ++i) {
             let j = (i + this.lastPicker + 1) % this.pickers.length;   // Ensure pickers are filled round-robin
+            if ((requireLevel !== null) && !this.pickers[j].supportsLevel(requireLevel)) continue;
             if (this.pickers[j].check(startIdx, withBuddy, level)) {
                 this.lastPicker = j;
                 return true;

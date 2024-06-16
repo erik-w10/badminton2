@@ -571,71 +571,76 @@ class Admin {
     assignParticipants(onCourtAssignment: (courtNr : number) => void) {
         let doUpdateState = false;
         this.courts.forEach((court) => {
-            // check if court is in training mode
-            if (!court.paused) {
-                // check if court is double or single
-                let capacity = court.isDouble ? 4 : 2;
-                if (court.players.length != capacity) {
-                    // First move any remaining players to the front of the waiting list
-                    while(court.players.length > 0) {
-                        doUpdateState = true;
-                        let last = court.players.pop() as Player;
-                        last.onCourt = 0;
-                        if (!last.participating) {
+            // Skip court if court is in training mode
+            if (court.paused) return;
+            // check if court is double or single
+            let capacity = court.isDouble ? 4 : 2;
+            if (court.players.length != capacity) {
+                // First move any remaining players to the front of the waiting list
+                while(court.players.length > 0) {
+                    doUpdateState = true;
+                    let last = court.players.pop() as Player;
+                    last.onCourt = 0;
+                    if (!last.participating) {
+                        last.paused = false;
+                    }
+                    else {
+                        if (last.paused) {
                             last.paused = false;
+                            this.paused.push(last);
                         }
                         else {
-                            if (last.paused) {
-                                last.paused = false;
-                                this.paused.push(last);
-                            }
-                            else {
-                                this.waiting.unshift(last);
-                            }
+                            this.waiting.unshift(last);
                         }
                     }
-                    // Ensure that linked waiting players are adjacent in the waiting list and single linked players are removed to notYet[]
-                    let notYet = [];
-                    let ready = [];
-                    while(this.waiting.length > 0) {
-                        let p = this.waiting.shift() as Player;
-                        if (p.link) {
-                            let idx = notYet.findIndex(e => e.link == p.link);
-                            if (idx >= 0) {
-                                ready.push(notYet.splice(idx, 1)[0]);       // Remove the peer and push it in the ready waiting list,
-                                ready.push(p);                              // Then push the player after it
-                            }
-                            else {
-                                notYet.push(p);                             // Linked player we have not seen the peer of (yet)
-                            }
+                }
+                // Ensure that linked waiting players are adjacent in the waiting list and single linked players are removed to notYet[]
+                let notYet = [];
+                let ready = [];
+                while(this.waiting.length > 0) {
+                    let p = this.waiting.shift() as Player;
+                    if (p.link) {
+                        let idx = notYet.findIndex(e => e.link == p.link);
+                        if (idx >= 0) {
+                            ready.push(notYet.splice(idx, 1)[0]);       // Remove the peer and push it in the ready waiting list,
+                            ready.push(p);                              // Then push the player after it
                         }
-                        else {  // No link (or 0) pass the player along to the ready list
-                            ready.push(p);
+                        else {
+                            notYet.push(p);                             // Linked player we have not seen the peer of (yet)
                         }
                     }
-                    if (capacity <= ready.length) {
+                    else {  // No link (or 0) pass the player along to the ready list
+                        ready.push(p);
+                    }
+                }
+                if (capacity <= ready.length) {
+                    let requireLevel = this.currentLevel(ready[0]);
+                    let gotSolution = false;
+
+                    for (let require of [ requireLevel, null]) {
                         this.picker.start(!court.isDouble);
-                        for (let i = 0;  i < ready.length;  ++i) {
+                        for (let i = 0;  !gotSolution && (i < ready.length);  ++i) {
                             const withBuddy = !!ready[i].link;
-                            let level = ready[i].level;
-                            if (withBuddy && (level > ready[i+1].level)) level = ready[i+1].level;
-                            if (this.picker.check(i, withBuddy, level)) {
-                                let indices = this.picker.result();
-                                court.players = ready.filter((_1, index) =>  indices.includes(index));
-                                ready =         ready.filter((_1, index) => !indices.includes(index));
-                                for (let p of court.players) {
-                                    p.onCourt = court.courtNr;
-                                    p.paused = false;
-                                }
-                                doUpdateState = true;
-                                onCourtAssignment(court.courtNr);
-                                break;
-                            }
+                            let level = this.currentLevel(ready[i]);
+                            gotSolution = (this.picker.check(i, withBuddy, level, require));
                             if (withBuddy) ++i;
                         }
+                        if (gotSolution) break;
                     }
-                    this.waiting = ready.concat(notYet);
+                    if (gotSolution) {
+                        let indices = this.picker.result();
+                        court.players = ready.filter((_1, index) =>  indices.includes(index));
+                        ready =         ready.filter((_1, index) => !indices.includes(index));
+                        for (let p of court.players) {
+                            p.onCourt = court.courtNr;
+                            p.paused = false;
+                        }
+                        doUpdateState = true;
+                        onCourtAssignment(court.courtNr);
+                    }
                 }
+                this.waiting = ready.concat(notYet);
+
             }
         });
         if (doUpdateState) this.updateSessionState(UndoOption.Keep);

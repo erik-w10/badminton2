@@ -28,7 +28,7 @@ test('Admin construction', ()=> {
     assert.equal(admin.players.length, 50);
 });
 
-test('Single level court asignment', ()=> {
+test('Single level court assignment', ()=> {
     let storage = new TestStorage;
     let admin = new Admin(2, storage);
     admin.levelBasedCourtAssignment(false);
@@ -50,7 +50,7 @@ test('Single level court asignment', ()=> {
     assert.equal(admin.waiting.length, 0);
 });
 
-test('Three level court asignment', ()=> {
+test('Three level court assignment', ()=> {
     let storage = new TestStorage;
     let admin = new Admin(3, storage);
     admin.levelBasedCourtAssignment(true);
@@ -112,7 +112,7 @@ test('Three level court asignment', ()=> {
         assert.ok(player);
         admin.togglePlayerPresence(player);
     });
-    // A game levels [2,3,4] and [3,4,5] are possible, [3,4,5] just happend, expecting [2,3,4] (round-robin)
+    // A game levels [2,3,4] and [3,4,5] are possible, [3,4,5] just happened, expecting [2,3,4] (round-robin)
     admin.assignParticipants(nr => court = nr);
     assert.equal(court, 3);
     assert.deepEqual(admin.waiting.map(x => x.playerId), ['1002', '5004']);
@@ -122,6 +122,52 @@ test('Three level court asignment', ()=> {
     assert.deepEqual(game1, ['1000', '3000', '2000', '1001']);
     assert.deepEqual(game2, ['5000', '4000', '5002', '4003']);
     assert.deepEqual(game3, ['4004', '2004', '3004', '4005']);
+});
+
+test('Three level court assignment, prefer to include 1st player', ()=> {
+    let storage = new TestStorage;
+    let admin = new Admin(3, storage);
+    admin.levelBasedCourtAssignment(true);
+
+    makeTestPlayers(admin);
+    assert.equal(admin.players.length, 50);
+    ['1000', '4000', '4001', '4002', '3000', '3001', '3002'].forEach( (id) => {
+        let player = admin.players.find( p => p.playerId == id );
+        assert.ok(player);
+        admin.togglePlayerPresence(player);
+    });
+    assert.equal(admin.waiting.length, 7);
+
+    let court = 0;
+    admin.assignParticipants(nr => court = nr);
+    assert.equal(court, 1);
+    assert.equal(admin.waiting.length, 3);
+    assert.deepEqual(admin.waiting.map(x => x.playerId), ['4000', '4001', '4002']);
+    let game1 = admin.courts[0].players.map(x => x.playerId);
+    assert.deepEqual(game1, ['1000', '3000', '3001', '3002']);
+});
+
+test('Three level court assignment, prefer to include 1st player, but if not successful let others play', ()=> {
+    let storage = new TestStorage;
+    let admin = new Admin(3, storage);
+    admin.levelBasedCourtAssignment(true);
+
+    makeTestPlayers(admin);
+    assert.equal(admin.players.length, 50);
+    ['1000', '4000', '4001', '4002', '3000', '3001'].forEach( (id) => {
+        let player = admin.players.find( p => p.playerId == id );
+        assert.ok(player);
+        admin.togglePlayerPresence(player);
+    });
+    assert.equal(admin.waiting.length, 6);
+
+    let court = 0;
+    admin.assignParticipants(nr => court = nr);
+    assert.equal(court, 1);
+    assert.equal(admin.waiting.length, 2);
+    assert.deepEqual(admin.waiting.map(x => x.playerId), ['1000', '3001']);
+    let game1 = admin.courts[0].players.map(x => x.playerId);
+    assert.deepEqual(game1, ['4000', '4001', '4002', '3000']);
 });
 
 test('Players storage', ()=> {
