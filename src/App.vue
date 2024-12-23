@@ -59,6 +59,26 @@
             adm.handleImportData(data, (warnings : string[]) => { doAlert("Meldingen", warnings.join('\n')) })
         })
         adm.preserveOldState()
+        window.myIpc.onFieldImage((_event : Event, data : ArrayBuffer) => {
+            let bytes = new Uint8Array(data)
+            if (bytes.length != 0)
+            {
+                // Note if ever these iamges are run-time replace, there urls should be revoked using URL.revokeObjectURL(imgUrl)
+                fieldImageUrls.push(URL.createObjectURL(new Blob([ bytes ], { type : "image/png" })))
+            }
+            else
+            {
+                const nImages = fieldImageUrls.length
+                console.log(`Got ${nImages} custom field images`)
+                if (!nImages) return
+                let imgs = document.getElementsByClassName("court-image")
+                for (let i = 0;  i < imgs.length; ++i )
+                {
+                    let img = (imgs.item(i) as HTMLImageElement)
+                    img.src = randomFieldImageUrl()
+                }
+            }
+        })
         startTimer()
     })
 
@@ -66,6 +86,7 @@
     const title = ref('badminton princenhage')
     const amountOfCourts = 8
     const courtTags = ref<HTMLDivElement[]>([])
+    const courtImages = ref<HTMLImageElement[]>([])
     const paused = ref(false)
     const linkMode = ref(false)
     const barcodeInput = ref<HTMLInputElement|null>(null)
@@ -77,8 +98,15 @@
     let allPlayersList = reactive(new ModalBase);
     let addPlayer = reactive(new ModalBase);
     const showLevel = ref(true);
+    let fieldImageUrls : string[] = [];
 
     const enableLinkMode = ref(false)
+
+    function randomFieldImageUrl() {
+        const nImages = fieldImageUrls.length;
+        if (nImages == 0) return ""
+        return fieldImageUrls[Math.floor(Math.random() * nImages)]
+    }
 
     // This provides the "tabindex" attribute for input elements in the main screen.  It is set to -1 when any modal is shown.
     const allowFocus = computed<number>(() => {
@@ -122,8 +150,10 @@
     {
         barcodeInput.value?.focus()
         const courtAssignmentHandler = (courtNr : number) => {
-                if (settings.courtFlash) doFlashAnimation(courtTags.value[courtNr-1])
-            }
+            if (settings.courtFlash) doFlashAnimation(courtTags.value[courtNr-1])
+            let url = randomFieldImageUrl()
+            if (url) courtImages.value[courtNr-1].src = url
+        }
         if (!paused.value) adm.assignParticipants(courtAssignmentHandler)
     }
 
@@ -374,7 +404,7 @@
                             <div @click="doCancelAnimations" ref="courtTags" class="number">{{court.courtNr}}</div>
                             <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
                         </div>
-                        <img :class="{inactive: court.paused}" @click="checkout(court)" src="./assets/court.png" alt="">
+                        <img class="court-image" ref="courtImages" :class="{inactive: court.paused}" @click="checkout(court)" src="./assets/court.png" alt="">
                         <div id="courtPlayers" class="list">
                             <draggable class="draggable-court" :list="court.players" group="participants" itemKey="playerId" ghostClass='ghost'
                             :move="ifRotationPaused" @start="onDragStart" @end="onDragEnd" handle=".dragHdl" :disabled="!paused" v-if="!court.paused">

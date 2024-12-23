@@ -7,6 +7,10 @@ export interface EventStringCallback {
     (evt: Event, data : string) : void
 }
 
+export interface FieldImageCallback {
+    (evt: Event, data : ArrayBuffer) : void
+}
+
 export interface VoidCallback {
     () : void
 }
@@ -20,5 +24,6 @@ export interface IMyIpc {
     onShowSettings:     (callback : VoidCallback) => void,
     onNfcCard:          (callback : EventStringCallback) => void,
     onNfcError:         (callback : EventStringCallback) => void,
+    onFieldImage:       (callback : FieldImageCallback) => void,
 }
 

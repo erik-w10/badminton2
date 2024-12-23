@@ -3,6 +3,7 @@ import { release } from 'node:os'
 import { join } from 'node:path'
 import { setNfcCardHandler, setNfcErrorHandler } from './nfc'
 import { setImportDataHandler, exportPlayers, importPlayers } from "./players_io"
+import { loadFieldImage, setImageHandler } from "./load_image"
 
 
 // The built directory structure
@@ -100,12 +101,14 @@ async function createWindow() {
     setNfcCardHandler(   (uid)  => win.webContents.send('nfc-card', uid))     // Note asuming here there is only ever one window...
     setNfcErrorHandler(  (msg)  => win.webContents.send('nfc-error', msg))
     setImportDataHandler((data) => win.webContents.send('import-data', data))
+    setImageHandler(     (data) => win.webContents.send('field-image', data))
 
     win.on('close', () => {
         console.log('Closing main window')
         setNfcCardHandler()
         setNfcErrorHandler()
         setImportDataHandler()
+        setImageHandler()
     })
     
     if (process.env.VITE_DEV_SERVER_URL) { // electron-vite-vue#298
@@ -116,10 +119,7 @@ async function createWindow() {
         win.loadFile(indexHtml)
     }
     
-    // Test actively push message to the Electron-Renderer TODO remove?
-    win.webContents.on('did-finish-load', () => {
-        win?.webContents.send('main-process-message', new Date().toLocaleString())
-    })
+    win.webContents.on('did-finish-load', loadFieldImage)
     
     // Make all links open with the browser, not with the application TODO remove?
     win.webContents.setWindowOpenHandler(({ url }) => {

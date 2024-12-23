@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('myIpc', {
   onShowSettings:   (callback) => ipcRenderer.on('show-settings', callback),
   onNfcCard:        (callback) => ipcRenderer.on('nfc-card', callback),
   onNfcError:       (callback) => ipcRenderer.on('nfc-error', callback),
+  onFieldImage:     (callback) => ipcRenderer.on('field-image', callback),
 })
