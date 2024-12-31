@@ -63,7 +63,7 @@
             let bytes = new Uint8Array(data)
             if (bytes.length != 0)
             {
-                // Note if ever these iamges are run-time replace, there urls should be revoked using URL.revokeObjectURL(imgUrl)
+                // Note if ever these images are run-time replaced, there urls should be revoked using URL.revokeObjectURL(imgUrl)
                 fieldImageUrls.push(URL.createObjectURL(new Blob([ bytes ], { type : "image/png" })))
             }
             else
@@ -200,10 +200,12 @@
     function checkout(court : Court) {
         if (!court.players.length) {
             court.paused = !court.paused
+            court.lastGame = false
             markStateChange()
         }
         else {
             adm.clearCourt(court)
+            stopCourtNumberAnimation(court.courtNr)
             markStateChange(UndoOption.Make)
         }
     }
@@ -353,8 +355,14 @@
         target.animate(keyFrames, options)
     }
 
-    function doCancelAnimations(evt : Event) {
-        for (let a of (evt.target as HTMLElement).getAnimations()) a.cancel();
+    function stopCourtNumberAnimation(nr : number) {
+
+        for (let a of courtTags.value[nr-1].getAnimations()) a.cancel();
+    }
+
+    function toggleLastGame(court : Court) {
+        court.lastGame = court.paused ? false : (!court.lastGame && (court.players.length > 0))
+        markStateChange();
     }
 </script>
 
@@ -400,9 +408,17 @@
 
                 <div class="courts">
                     <div  v-bind:key="court.courtNr" class="court" v-for="court in adm.courts">
-                        <div style="display: flex; justify-content: space-between">
-                            <div @click="doCancelAnimations" ref="courtTags" class="number">{{court.courtNr}}</div>
-                            <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
+                        <div class="court-hdr">
+                            <div class="hdr-third1">
+                                <div @click="stopCourtNumberAnimation(court.courtNr)" ref="courtTags" class="number">{{court.courtNr}}</div>
+                            </div>
+                            <div class="hdr-third2" @click="toggleLastGame(court)">
+                                <div class="court-hdr-msg" v-if="court.lastGame">laatste spel</div>
+                                <img class="repeat-logo" src="./assets/repeat.svg" alt="repeat logo" role="img" v-if="!court.lastGame && (court.players.length > 0)">
+                            </div>
+                            <div class="hdr-third3">
+                                <div @click="toggleDouble(court)" class="type">{{court.isDouble ? "dubbel" : "enkel"}}</div>
+                            </div>
                         </div>
                         <img class="court-image" ref="courtImages" :class="{inactive: court.paused}" @click="checkout(court)" src="./assets/court.png" alt="">
                         <div id="courtPlayers" class="list">
@@ -482,6 +498,41 @@
         display: flex;
         flex-direction: column;
         padding-right: 8px;
+    }
+    .court-hdr {
+        display: flex;
+        justify-content: space-between;
+    }
+    .hdr-third1 {
+        flex: 0 0 33%;
+        display: flex;
+        justify-content: left;
+    }
+    .hdr-third2 {
+        flex: 0 0 33%;
+        display: flex;
+        justify-content: center;
+    }
+    .hdr-third3 {
+        flex: 0 0 33%;
+        display: flex;
+        justify-content: right;
+    }
+    .court-hdr-msg {
+        margin-top: auto;
+        margin-bottom: auto;
+        font-size: smaller;
+        text-align: center;
+        background-color: #DDD;
+        border-radius: 6px;
+        padding: 3px 6px;
+    }
+    .repeat-logo {
+        filter: opacity(50%);
+        width: 20px;
+        height: 20px;
+        margin-top: auto;
+        margin-bottom: auto;
     }
 
     .courts {

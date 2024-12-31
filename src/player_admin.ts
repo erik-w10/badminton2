@@ -18,6 +18,7 @@ type Court = {
     courtNr:  number;
     isDouble: boolean;
     paused:   boolean;
+    lastGame: boolean;
     players:  Player[];
 }
 
@@ -174,6 +175,7 @@ class Admin {
                 courtNr: nr,
                 isDouble: true,
                 paused: false,
+                lastGame: false,
                 players: []
             };
             this.courts.push(court);
@@ -421,11 +423,14 @@ class Admin {
         };
         this.waiting.forEach( e => state.w.push(e.link ? [e.playerId, e.link] : e.playerId));
         this.paused.forEach(  e => state.p.push(e.link ? [e.playerId, e.link] : e.playerId));
-        // A court record consists of a state character ('p' paused, '2' double, '1' single), followed by an array of 2-entry player arrays:
+        // A court record consists of a state character ('p' paused, '2' or 'L' double, '1' or 'l' single, l/L encodes "last game"), followed by an array of 2-entry player arrays:
         // One player array consists of the player ID, followed by the state, 'g' gone, 'p' to-be-paused, '-' normal/active
         // If the player is linked then instead of a player ID string a 2-element array if player ID & link number is used
         this.courts.forEach( (c) => {
-            let record = { s: c.paused ? 'p' : c.isDouble ? '2' : '1', p: [] as CourtPlayer[] };
+            let record = {
+                s: c.paused ? 'p' : c.lastGame ? (c.isDouble ? 'L' : 'l') : (c.isDouble ? '2' : '1'),
+                p: [] as CourtPlayer[]
+            };
             c.players.forEach(p => record.p.push([p.link ? [p.playerId, p.link] : p.playerId, !p.participating ? 'g' : p.paused ? 'p' : '-']));
             state.c.push(record);
         });
@@ -449,6 +454,7 @@ class Admin {
         this.courts.forEach(c => {
             c.isDouble = true;
             c.paused = false;
+            c.lastGame = false;
             c.players = [];
         });
         this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } );
@@ -488,10 +494,11 @@ class Admin {
             if (oldState.c.length != this.courts.length) throw new Error(`Nr of courts doesn't match`);
             oldState.c.forEach( (c : any, idx : number) => {
                 let courtState = c.s;
-                if ((courtState.length != 1) || !"p21".includes(courtState)) throw new Error(`Invalid court state '${courtState}'`);
+                if ((courtState.length != 1) || !"p21lL".includes(courtState)) throw new Error(`Invalid court state '${courtState}'`);
                 if ((courtState == 'p') && (c.p.length != 0)) throw new Error("Paused court contained players");
                 this.courts[idx].paused = (courtState === 'p');
-                this.courts[idx].isDouble = (courtState !== '1');
+                this.courts[idx].isDouble = (courtState !== '1') && (courtState !== 'l');
+                this.courts[idx].lastGame = (courtState === 'L') || (courtState === 'l');
                 c.p.forEach( (rec : any) => {
                     if (rec.length != 2)        throw new Error("Player on court record length is not 2");
                     let [id, playerState] = rec;
@@ -558,6 +565,10 @@ class Admin {
             p.onCourt = 0;
         }
         c.players = [];
+        if (c.lastGame) {
+            c.paused = true;
+            c.lastGame = false;
+        }
     }
 
     /** Select the picker object appropriate for the selected field assignment strategy */
