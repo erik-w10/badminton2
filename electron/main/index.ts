@@ -98,10 +98,10 @@ async function createWindow() {
 
     installApplicationMenu(win);
 
-    setNfcCardHandler(   (uid)  => win.webContents.send('nfc-card', uid))     // Note asuming here there is only ever one window...
-    setNfcErrorHandler(  (msg)  => win.webContents.send('nfc-error', msg))
-    setImportDataHandler((data) => win.webContents.send('import-data', data))
-    setImageHandler(     (data) => win.webContents.send('field-image', data))
+    setNfcCardHandler(   (uid)            => win.webContents.send('nfc-card', uid))     // Note asuming here there is only ever one window...
+    setNfcErrorHandler(  (msg)            => win.webContents.send('nfc-error', msg))
+    setImportDataHandler((data)           => win.webContents.send('import-data', data))
+    setImageHandler(     (data, mimeType) => win.webContents.send('field-image', data, mimeType))
 
     win.on('close', () => {
         console.log('Closing main window')

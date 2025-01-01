@@ -59,12 +59,12 @@
             adm.handleImportData(data, (warnings : string[]) => { doAlert("Meldingen", warnings.join('\n')) })
         })
         adm.preserveOldState()
-        window.myIpc.onFieldImage((_event : Event, data : ArrayBuffer) => {
+        window.myIpc.onFieldImage((_event : Event, data : ArrayBuffer, mimeType : string|null) => {
             let bytes = new Uint8Array(data)
-            if (bytes.length != 0)
+            if (mimeType !== null)
             {
                 // Note if ever these images are run-time replaced, there urls should be revoked using URL.revokeObjectURL(imgUrl)
-                fieldImageUrls.push(URL.createObjectURL(new Blob([ bytes ], { type : "image/png" })))
+                fieldImageUrls.push(URL.createObjectURL(new Blob([ bytes ], { type : mimeType })))
             }
             else
             {

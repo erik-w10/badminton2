@@ -8,7 +8,7 @@ export interface EventStringCallback {
 }
 
 export interface FieldImageCallback {
-    (evt: Event, data : ArrayBuffer) : void
+    (evt: Event, data : ArrayBuffer, mimeType : string|null) : void
 }
 
 export interface VoidCallback {
