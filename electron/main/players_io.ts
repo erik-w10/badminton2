@@ -18,7 +18,8 @@ async function exportPlayers(event, jsonText)
     {
         csvFile.push(`"${p.name || ""}",${p.playerId || 0},"${p.gender || ""}",${p.level || 1}`)
     }
-    writeFile(pathInfo.filePath, csvFile.join('\n') + '\n', 'utf8', () =>{
+    const bom = "\uFEFF";
+    writeFile(pathInfo.filePath, bom + csvFile.join('\n') + '\n', 'utf8', () =>{
         console.log(`Wrote "${pathInfo.filePath}", ${csvFile.length} lines`);
     });
 }
