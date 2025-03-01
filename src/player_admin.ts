@@ -156,7 +156,9 @@ class Admin {
     /** The first player selected in a linking operation, else null */
     xSelected = <null|Player>(null);
     /** Indication if the admin status can be reset to previous status ("undo" feature) */
-    canUndo : boolean  = false;
+    canUndo : boolean = false;
+    /** The number of players is a multiple of 4 and the the last clear-court operation added 4 players to the end of the waiting list */
+    mixMore : boolean = false;
     /** Encoded current admin status */
     stateString = "";
     /** Encoded previous admin status ("undo" state) */
@@ -328,7 +330,7 @@ class Admin {
         else {
             // Note: when a player is on court, checks out and checks in again then this just undoes the check out
             p.paused = false;
-            if (!p.onCourt) this.waiting.push(p);
+            if (!p.onCourt) this.addToWaiting([p]);
         }
         this.updateSessionState();
     }
@@ -388,25 +390,38 @@ class Admin {
 
     /** Make a participating player paused, whatever its current status is (paused already, waiting or on-court) */
     makePlayerPaused(player : Player) {
-        if (player.onCourt != 0) {
-            player.paused = true;
-        }
-        else if (this.paused.findIndex(e => e.playerId === player.playerId) < 0) {
-            let idx = this.waiting.findIndex(e => e.playerId === player.playerId);
-            if (idx >= 0) this.paused.push(this.waiting.splice(idx, 1)[0]);
+        let toPause = [player];
+        let linkedPlayer = this.linkedPlayer(player);
+        if (linkedPlayer) toPause.push(linkedPlayer);
+        for(let p of toPause)
+        {
+            if (p.onCourt != 0) {
+                p.paused = true;
+            }
+            else if (this.paused.findIndex(e => e.playerId === p.playerId) < 0) {
+                let idx = this.waiting.findIndex(e => e.playerId === p.playerId);
+                if (idx >= 0) this.paused.push(this.waiting.splice(idx, 1)[0]);
+            }
         }
         this.countLevels();
     }
 
     /** Make a participating player active (non-paused), whatever it current status is (paused, already waiting or on court) */
     makePlayerActive(player : Player) {
-        if (player.onCourt != 0) {
-            player.paused = false;
+        let toActivate = [player];
+        let linkedPlayer = this.linkedPlayer(player);
+        if (linkedPlayer) toActivate.push(linkedPlayer);
+        let toAdd : Player[] = [];
+        for (let p of toActivate) {
+            if (p.onCourt != 0) {
+                p.paused = false;
+            }
+            else if (this.waiting.findIndex(e => e.playerId === p.playerId) < 0) {
+                let idx = this.paused.findIndex(e => e.playerId === p.playerId);
+                if (idx >= 0) toAdd.push(this.paused.splice(idx, 1)[0]);
+            }
         }
-        else if (this.waiting.findIndex(e => e.playerId === player.playerId) < 0) {
-            let idx = this.paused.findIndex(e => e.playerId === player.playerId);
-            if (idx >= 0) this.waiting.push(this.paused.splice(idx, 1)[0]);
-        }
+        if (toAdd.length) this.addToWaiting(toAdd);
         this.countLevels();
     }
 
@@ -420,6 +435,7 @@ class Admin {
             w: [] as PlayerId[],    // Waiting players
             p: [] as PlayerId[],    // Paused players
             c: [] as CourtState[],  // On court players (with to-be-paused/gone state)
+            f: "",                  // Global state flags
         };
         this.waiting.forEach( e => state.w.push(e.link ? [e.playerId, e.link] : e.playerId));
         this.paused.forEach(  e => state.p.push(e.link ? [e.playerId, e.link] : e.playerId));
@@ -434,6 +450,7 @@ class Admin {
             c.players.forEach(p => record.p.push([p.link ? [p.playerId, p.link] : p.playerId, !p.participating ? 'g' : p.paused ? 'p' : '-']));
             state.c.push(record);
         });
+        if (this.mixMore) state.f += 'm';
         if (undoOption === UndoOption.DoNothing) {
             this.canUndo = false;
         }
@@ -459,6 +476,7 @@ class Admin {
         });
         this.players.forEach( p => { p.paused = false; p.participating = false; p.onCourt = 0; delete(p.link) } );
         this.playerLinks = [];
+        this.mixMore = false;
         this.countLevels();
     }
 
@@ -511,6 +529,11 @@ class Admin {
                     p.onCourt = idx+1;
                 });
             });
+            if (oldState.f !== undefined) {
+                if (typeof(oldState.f) !== 'string') throw new Error(`Flags field is not a string`);
+                let flags = oldState.f as string;
+                this.mixMore = flags.includes('m');
+            }
             this.rebuildPlayerLinks();
             console.log("Restored previous session state");
             this.updateSessionState();
@@ -550,6 +573,7 @@ class Admin {
 
     /** Clear one court */
     clearCourt(c : Court) {
+        let newWaiting : Player[] = [];
         for (let n = c.players.length; n > 0; --n) {
             let pick = Math.floor(n * Math.random());
             let p = c.players.splice(pick, 1)[0];
@@ -558,7 +582,7 @@ class Admin {
                     this.paused.push(p);
                 }
                 else {
-                    this.waiting.push(p);
+                    newWaiting.push(p);
                 }
             }
             p.paused = false;
@@ -568,6 +592,28 @@ class Admin {
         if (c.lastGame) {
             c.paused = true;
             c.lastGame = false;
+        }
+        this.addToWaiting(newWaiting);
+    }
+
+    addToWaiting(toAdd : Player[]) {
+        if (toAdd.length < 1) return;
+        if ((this.waiting.length < 4) || (this.waiting.length % 4 != 0)) {
+            this.mixMore = false;
+        }
+        let mixPlayers : Player[] = [];
+        if (this.mixMore)
+        {
+            mixPlayers = this.waiting.splice(-2, 2);
+        }
+        let toInsert = toAdd.slice(0, 2);
+        let toAppend = toAdd.slice(2);
+        this.waiting = this.waiting.concat(toInsert).concat(mixPlayers).concat(toAppend);
+        if (this.mixMore) {
+            this.mixMore = false;
+        }
+        else {
+            this.mixMore = (toAdd.length === 4) && ((this.waiting.length % 4) === 0);
         }
     }
 
@@ -624,7 +670,10 @@ class Admin {
                         ready.push(p);
                     }
                 }
-                if (capacity <= ready.length) {
+                // If there are at least as many players available as can be placed on the field and
+                // either we are _not_ waiting for 2 more players to mix in the last four, or
+                // there are at least 2 more players than the capacity, then we assign players to the court
+                if ((ready.length >= capacity) && (!this.mixMore || (ready.length >= capacity + 2))) {
                     let requireLevel = this.currentLevel(ready[0]);
                     let gotSolution = false;
 

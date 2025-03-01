@@ -213,16 +213,11 @@
     // Toggle the pause-requested state of a player on a court
     function togglePlayerPause(player : Player, court : Court) {
         if (player.onCourt != court.courtNr) console.log("togglePausePlayer invariant problem");
-        let linked = adm.linkedPlayer(player);
-        if (player.paused)
-        {
+        if (player.paused) {
             adm.makePlayerActive(player);
-            if (linked) adm.makePlayerActive(linked);
         }
-        else
-        {
+        else {
             adm.makePlayerPaused(player);
-            if (linked) adm.makePlayerPaused(linked);
         }
         adm.updateSessionState();
         barcodeInput.value?.focus();
@@ -281,11 +276,7 @@
     function pauseWaitingPlayer(player : Player) {
         stopTimer();
         doConfirm('Pauzeren', `${player.name} pauze nemen?`, (result) => {
-            if (result == 1) {
-                adm.makePlayerPaused(player);
-                let linked = adm.linkedPlayer(player);
-                if (linked) adm.makePlayerPaused(linked);
-            }
+            if (result == 1) adm.makePlayerPaused(player);
             markStateChange();
         })
     }
@@ -293,8 +284,6 @@
     // Resume a player in the pausedPlayers list
     function resumePausedPlayer(player : Player) {
         adm.makePlayerActive(player);
-        let linked = adm.linkedPlayer(player);
-        if (linked) adm.makePlayerActive(linked);
         markStateChange();
     }
 
@@ -320,7 +309,7 @@
         adm.players.push(p);
         adm.playersToLocalStorage();
         p.participating = true;
-        adm.waiting.push(p);
+        adm.addToWaiting([p]);
         resetBarcode();
     }
 
@@ -386,7 +375,7 @@
                     <draggable class="draggable-list" :list="adm.paused" group="participants" itemKey="playerId" ghostClass='ghost'
                     @start="onDragStart" @end="onDragEnd" :move="checkListMove" handle=".dragHdl">
                         <template #item="{ element }">
-                            <PlayerTile :player="element" @clicked="pausedPlayerClick(element)" :separator="true" :showLevel="showLevel"/>
+                            <PlayerTile :player="element" @clicked="pausedPlayerClick(element)" :separator="false" :showLevel="showLevel"/>
                         </template>
                     </draggable>
                 </div>

@@ -12,6 +12,7 @@
     const pClass = computed(() => ({
         'list-item'     : true,
         "separator"     : props.separator,
+        "separator2"    : adm.mixMore && props.separator,
         'male'          : (props.player.gender == 'm'),
         'female'        : (props.player.gender == 'v'),
         'nomail'        : (props.player.gender == 'g'),
@@ -70,6 +71,10 @@
     }
 
     .separator:nth-child(4n) {
+        margin-bottom: 12px !important;
+    }
+
+    .separator2:nth-last-child(3) {
         margin-bottom: 12px !important;
     }
 
