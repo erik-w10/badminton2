@@ -2,7 +2,8 @@
     import { onMounted, ref } from 'vue'
 
     const props = defineProps<{
-        level : number
+        level : number,
+        allowFocus : number
     }>()
     const emits = defineEmits<{'set': [newLevel : number]}>()
 
@@ -46,6 +47,7 @@
             class="levelButton button"
             :class="{'is-info' : (lvl == level), 'is-outlined' : (lvl != level)}"
             v-for="lvl in allLevels"
+            :tabindex="props.allowFocus"
         >
             {{ lvl }}
         </button>

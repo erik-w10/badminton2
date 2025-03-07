@@ -13,6 +13,7 @@
     import { settings } from './settings'
     import { alert, doAlert, confirm, doConfirm } from './basic_modals'
     import { anyModals } from './modal_base'
+    import { default as nfcCallbacks } from './nfc_callbacks'
 
     // when application starts
     onMounted(() => {
@@ -38,23 +39,16 @@
             settings.show = true
             stopTimer()
         })
-        window.myIpc.onNfcCard((_event : Event, uid : string) => {
-            if (allPlayersList.show) {
-                doConfirm(
-                    "ID naar clipboard",
-                    `Gelezen NFC ID ${uid} naar het clipboard ?`,
-                    (ok) => { if (ok === 1) window.navigator.clipboard.writeText(uid); }
-                )
-            }
-            else {
-                barcode.value = uid
-                checkBarcode()
-            }
+
+        nfcCallbacks.setNfcHandler((uid : string) => {
+            barcode.value = uid;
+            checkBarcode();
             nfcAlarm.value = "N"
-        })
-        window.myIpc.onNfcError((_event : Event, msg : string) => {
-            handleNfcError(msg)
-        })
+        });
+        nfcCallbacks.setNfcErrorHandler((msg : string) => { handleNfcError(msg); })
+        window.myIpc.onNfcCard((_event : Event, uid : string) => { nfcCallbacks.onNfc(uid); })
+        window.myIpc.onNfcError((_event : Event, msg : string) => { nfcCallbacks.onNfcError(msg); })
+
         window.myIpc.onImportData((_event : Event, data : any[]) => {
             adm.handleImportData(data, (warnings : string[]) => { doAlert("Meldingen", warnings.join('\n')) })
         })

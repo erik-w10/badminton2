@@ -139,6 +139,7 @@ class AdminStorage implements IAdminStorage {
     }
 }
 
+type ImportEventHandler = (() => void) | null;
 
 /** Player (state) administration object */
 class Admin {
@@ -167,6 +168,8 @@ class Admin {
     picker = new Picker(false);
     /** Array of flags to indicate if a level can play (there are enough other compatible players), note that the array index should be level-1 */
     levelCanPlay = (Array(5).fill(false) as boolean[]);
+    /** Callback for player list import */
+    private importCallback : ImportEventHandler = null;
 
     readonly storage : IAdminStorage;
 
@@ -264,6 +267,14 @@ class Admin {
         this.storage.players = JSON.stringify(r);
     }
 
+    /** Install an imported data callback */
+    setImportEventHandler(h : ImportEventHandler) : ImportEventHandler
+    {
+        let old = this.importCallback;
+        this.importCallback = h;
+        return old;
+    }
+
     /** Handle imported known player list data (a read-in spreadsheet file) */
     handleImportData(array : any, reporter: (warnings: string[]) => void )
     {
@@ -285,6 +296,7 @@ class Admin {
             this.rebuildPlayerLinks();
             if (warnings.length > 0) reporter(warnings);
             this.countLevels();
+            if (this.importCallback) this.importCallback();
         });
     }
 
@@ -307,9 +319,16 @@ class Admin {
     }
 
     /** Update the `level` of the `player` specified */
-    updatePlayerLevel (player : Player, level : number) {
-        if (!isValidLevel(level) || (player.level == level)) return;
-        player.level = level;
+    updatePlayerInfo (player : Player, newInfo : KnownPlayer) {
+        if (!isValidLevel(newInfo.level)) return;
+        if (player.playerId != newInfo.playerId) {
+            let idx = this.players.findIndex( p => p.playerId === newInfo.playerId )
+            if(idx >= 0) throw(`ID ${newInfo.playerId} is al in gebruik door ${this.players[idx].name}`)
+        }
+        player.name     = newInfo.name;
+        player.playerId = newInfo.playerId;
+        player.level    = newInfo.level;
+        player.gender   = newInfo.gender;
         this.playersToLocalStorage();
         this.countLevels();
     }
@@ -737,7 +756,7 @@ class Admin {
 /** Reactive player administration instance */
 let adm  = reactive(new Admin(8));
 
-export type {Player, Court, IAdminStorage}
+export type {Player, Court, IAdminStorage, ImportEventHandler}
 export default adm;
 export {UndoOption, Admin}
 export {

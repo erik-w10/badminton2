@@ -1,37 +1,47 @@
 <script setup lang="ts">
-    import { computed, reactive, ref } from 'vue';
-    import { type Player, default as adm } from './player_admin';
+    import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+    import { ImportEventHandler, type Player, default as adm } from './player_admin';
     import { doConfirm } from './basic_modals';
-    import { type IModalBase } from './modal_base';
-    import SetLevelModal from './SetLevelModal.vue';
-    import {ModalBase} from './modal_base';
-    let setLevelInfo = reactive(new ModalBase);
+    import { type IModalBase, ModalBase } from './modal_base';
+    import EditPlayerModal from './EditPlayerModal.vue';
+    import { default as nfcCallbacks, NfcHandler } from './nfc_callbacks'
+    import { KnownPlayer } from './player';
 
     const props = defineProps<{
         control : IModalBase,
     }>()
     const emits = defineEmits<{'closed': []}>();
+
+    const editPlayerInfo = reactive(new ModalBase);
     const allowFocus = computed<number>(() => {
         return (props.control.displayed) ? 0 : -1;
     });
-    const updatedPlayer = ref<Player|null>(null);
+    const editedInfo = ref<KnownPlayer>({ name: "", playerId: "", gender: "", level: 1});
+    const sortedPlayers = ref<Player[]>(sortPlayers());
+    let updatedPlayer : Player|null = null;
 
     // permanently delete a player from the application
     function askDeletePlayer(player : Player) {
         doConfirm("", "Weet je zeker dat je deze speler wilt verwijderen?", (result) => {
             if (result === 1) {
                 adm.deletePlayer(player);
+                sortedPlayers.value = sortPlayers();
             }
         })
     }
 
-    function setLevel(player : Player) {
-        updatedPlayer.value = player;
-        setLevelInfo.show = true;
+    function sortPlayers() {
+        return adm.players.toSorted((a,b) => a.name < b.name ? -1 : a.name > b.name ? +1 : 0);
     }
 
-    function updateLevel(newLevel : number) {
-        adm.updatePlayerLevel(updatedPlayer.value as Player, newLevel);
+    function editPlayer(player : Player) {
+        updatedPlayer = player;
+        editedInfo.value = player.identity();
+        editPlayerInfo.show = true;
+    }
+
+    function updatePlayer(doUpdate : boolean) {
+        if (doUpdate && (updatedPlayer !== null)) adm.updatePlayerInfo(updatedPlayer, editedInfo.value);
     }
 
     function doImport() {
@@ -42,6 +52,25 @@
         let playersJson = adm.exportPlayers();
         if (playersJson !== null) window.myIpc.exportPlayers(playersJson);
     }
+
+    let oldNfcHandler : NfcHandler = null;
+    let oldImportHandler : ImportEventHandler = null;
+    onMounted(() => {
+        oldNfcHandler = nfcCallbacks.setNfcHandler((uid : string) => {
+            doConfirm(
+                "ID naar clipboard",
+                `Gelezen NFC ID ${uid} naar het clipboard ?`,
+                (ok) => { if (ok === 1) window.navigator.clipboard.writeText(uid); }
+            )
+        });
+        oldImportHandler = adm.setImportEventHandler(() => {
+            sortedPlayers.value = sortPlayers();
+        });
+    })
+    onUnmounted(() => {
+        nfcCallbacks.setNfcHandler(oldNfcHandler);
+        adm.setImportEventHandler(oldImportHandler);
+    })
 </script>
 
 <template>
@@ -55,10 +84,10 @@
             </div>
             <section class="modal-card-body">
                 <div class="list">
-                    <div style="overflow:hidden" class="list-item" :key="player.playerId" v-for="player in adm.players">
+                    <div style="overflow:hidden" class="list-item" :key="player.playerId" v-for="player in sortedPlayers">
                         <b>{{player.name}}</b> ({{player.playerId}})
                         <span style="float:right">
-                            <span @click="setLevel(player)" class="button">set level ({{player.level}})</span>
+                            <span @click="editPlayer(player)" class="button">bewerken</span>
                             <span @click="askDeletePlayer(player)" class="button is-danger">verwijder</span>
                         </span>
                     </div>
@@ -67,5 +96,5 @@
         </div>
         <button @click="props.control.show=false; $emit('closed')" class="modal-close is-large" aria-label="close" :tabindex="allowFocus"></button>
     </div>
-    <SetLevelModal v-if=setLevelInfo.show :control="setLevelInfo" :player="(updatedPlayer as Player)" @done="updateLevel"/>
+    <EditPlayerModal v-if=editPlayerInfo.show :control="editPlayerInfo" :player="editedInfo" @done="updatePlayer"/>
 </template>

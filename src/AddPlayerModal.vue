@@ -66,7 +66,7 @@
                 <div class="field">
                     <label class="label">Speelniveau (1..5)</label>
                     <div class="control">
-                        <LevelButtons :level="newPlayer.level" @set="(l) => newPlayer.level=l"/>
+                        <LevelButtons :level="newPlayer.level" :allow-focus="0" @set="(l) => newPlayer.level=l"/>
                     </div>
                 </div>
             </section>
