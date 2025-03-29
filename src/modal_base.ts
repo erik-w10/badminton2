@@ -2,21 +2,36 @@ import { ref } from "vue";
 
 interface IModalBase {
     show:   boolean,
-    displayed: boolean,
+    readonly displayed: boolean,
 };
+
 class ModalBase implements IModalBase {
+    private readonly name;
+
+    constructor(name : string)
+    {
+        this.name = name;
+    }
     private _show : boolean = false;
     set show(x : boolean) {
-        if (x) {
-            this.lastModal = ModalBase.activeModal.value;
-            ModalBase.activeModal.value = this.thisModal;
-            let e = document.activeElement;
-            if (e && ( e instanceof HTMLElement)) (e as HTMLElement).blur();
+        if (x === this._show) {
+            console.log(`Modal ${this.name} is alrealy shown ${x ? 'shown' : 'hidden'}`);
         }
         else {
-            ModalBase.activeModal.value = this.lastModal;
+            this._show = x;
+            if (x) {
+                if (this.thisModal === ModalBase.activeModal.value) {
+                    throw 'ModalBase invariant error';
+                }
+                this.lastModal = ModalBase.activeModal.value;
+                ModalBase.activeModal.value = this.thisModal;
+                let e = document.activeElement;
+                if (e && ( e instanceof HTMLElement)) (e as HTMLElement).blur();
+            }
+            else {
+                ModalBase.activeModal.value = this.lastModal;
+            }
         }
-        this._show = x;
     }
     get show() {
         return this._show;

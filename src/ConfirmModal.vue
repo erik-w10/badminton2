@@ -1,12 +1,18 @@
 <script setup lang="ts">
+    import { reactive } from 'vue'
     import type { IConfirm } from './basic_modals'
     const props = defineProps<{
         data : IConfirm,
     }>()
+    const classObject = reactive({
+        modal       : true,
+        'is-active' : true,
+        topModal    : props.data.displayed,
+    });
 </script>
 
 <template>
-    <div class="modal is-active">
+    <div :class="classObject">
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">

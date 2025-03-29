@@ -12,13 +12,18 @@
     }>()
     const emits = defineEmits<{'closed': []}>();
 
-    const editPlayerInfo = reactive(new ModalBase);
+    const editPlayerInfo = reactive(new ModalBase("edit player"));
     const allowFocus = computed<number>(() => {
         return (props.control.displayed) ? 0 : -1;
     });
     const editedInfo = ref<KnownPlayer>({ name: "", playerId: "", gender: "", level: 1});
     const sortedPlayers = ref<Player[]>(sortPlayers());
     let updatedPlayer : Player|null = null;
+    const classObject = reactive({
+        modal       : true,
+        'is-active' : true,
+        topModal    : props.control.displayed,
+    });
 
     // permanently delete a player from the application
     function askDeletePlayer(player : Player) {
@@ -74,7 +79,7 @@
 </script>
 
 <template>
-    <div class="modal" v-bind:class="{'is-active': true}">
+    <div :class="classObject">
         <div class="modal-background"></div>
         <div class="modal-card">
             <div class="modal-card-head">

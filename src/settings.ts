@@ -1,9 +1,8 @@
 import { reactive } from 'vue';
-import { ModalBase } from './modal_base';
+import { IModalBase, ModalBase } from './modal_base';
 import { doAlert } from './basic_modals';
 
-interface ISettings {
-    show :              boolean,
+interface ISettings extends IModalBase {
     courtFlash :        boolean,
     messageBar :        boolean,
     newMessageEffect :  boolean,
@@ -60,6 +59,6 @@ class Settings extends ModalBase implements ISettings{
     }
 };
 
-let settings = reactive(new Settings);
+let settings = reactive(new Settings("Instellingen"));
 
 export { type ISettings, settings }

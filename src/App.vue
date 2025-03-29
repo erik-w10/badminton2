@@ -23,10 +23,12 @@
         showLevel.value = settings.levelIndication;
         adm.loadPlayers();
         window.myIpc.onPlayerAdmin(() => {
+            if (ModalBase.modalsActive()) return;
             allPlayersList.show = true;
             stopTimer()
         })
         window.myIpc.onRestoreSession(() => {
+            if (ModalBase.modalsActive()) return;
             stopTimer()
             doConfirm("Herladen", "Status van vorige sessie herladen ?", (result : any) => {
                 if (result === 1) {
@@ -36,6 +38,7 @@
             })
         })
         window.myIpc.onShowSettings(() => {
+            if (ModalBase.modalsActive()) return;
             settings.show = true
             stopTimer()
         })
@@ -89,8 +92,8 @@
     let timerAni : null|Animation = null
     const nfcAlarm = ref("N")
     let nfcAlarmTimerId : null|NodeJS.Timeout = null
-    let allPlayersList = reactive(new ModalBase);
-    let addPlayer = reactive(new ModalBase);
+    let allPlayersList = reactive(new ModalBase("all players list"));
+    let addPlayer = reactive(new ModalBase("add playerS"));
     const showLevel = ref(true);
     let fieldImageUrls : string[] = [];
 
@@ -222,6 +225,7 @@
         if (barcode.value !== null) {
             let player = adm.players.find( p => p.playerId == barcode.value );
             if (!player) {
+                if (ModalBase.modalsActive()) return;
                 barcodeInput.value?.blur();
                 addPlayer.show = true;
                 stopTimer();
@@ -421,9 +425,9 @@
     </div>
     <AddPlayerModal v-if="addPlayer.show" :control="addPlayer" :barcode="barcode" @add="addNewPlayer" @cancel="resetBarcode" />
     <AllPlayersListModal v-if="allPlayersList.show" :control="allPlayersList" @closed="markStateChange"/>
-    <AlertModal v-if=alert.show :data="alert" />
-    <ConfirmModal v-if=confirm.show :data="confirm" />
     <SettingsModal v-if=settings.show :settings="settings" @close="hideSettings()"/>
+    <ConfirmModal v-if=confirm.show :data="confirm" />
+    <AlertModal v-if=alert.show :data="alert" />
 </template>
 
 
@@ -636,6 +640,9 @@
     }
     .dragHdl {
         flex: 1;
+    }
+    .topModal {
+        z-index: 100;
     }
 
 </style>

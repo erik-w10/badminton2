@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { onMounted, ref } from 'vue';
+    import { onMounted, ref, reactive } from 'vue';
     import { ISettings } from './settings';
 
     let scratchMessages = ref("");
@@ -9,6 +9,11 @@
         settings : ISettings;
     }>()
     const emits = defineEmits<{'close': []}>()
+    const classObject = reactive({
+        modal       : true,
+        'is-active' : true,
+        topModal    : props.settings.displayed,
+    });
 
     function doSave() {
         props.settings.barMessages = scratchMessages.value.split('\n').map(x => x.trim()).filter((s) => s != "");
@@ -26,7 +31,7 @@
 </script>
 
 <template>
-    <div class="modal is-active">
+    <div :class="classObject">
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">

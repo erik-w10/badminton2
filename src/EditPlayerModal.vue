@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { onMounted, onUnmounted, ref, computed } from 'vue';
+    import { onMounted, onUnmounted, ref, reactive, computed } from 'vue';
     import { type IModalBase } from './modal_base';
     import LevelButtons from './LevelButtons.vue';
     import { KnownPlayer } from './player';
@@ -19,6 +19,11 @@
     const newPlayerId = ref<string>(oldPlayerId);
     const allowFocus = computed<number>(() => {
         return (props.control.displayed) ? 0 : -1;
+    });
+    const classObject = reactive({
+        modal       : true,
+        'is-active' : true,
+        topModal    : props.control.displayed,
     });
 
     onMounted(() => {
@@ -46,7 +51,7 @@
 </script>
 
 <template>
-    <div class="modal is-active">
+    <div :class="classObject">
         <div class="modal-background"></div>
         <div class="modal-card">
             <div class="modal-card-head">

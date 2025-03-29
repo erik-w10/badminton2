@@ -719,7 +719,6 @@ class Admin {
                     }
                 }
                 this.waiting = ready.concat(notYet);
-
             }
         });
         if (doUpdateState) this.updateSessionState(UndoOption.Keep);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { computed, onMounted, ref } from 'vue'
+    import { computed, onMounted, ref, reactive } from 'vue'
     import {Player } from './player'
     import { isValidGender, isValidLevel } from './player_admin';
     import { type IModalBase } from './modal_base'
@@ -21,6 +21,12 @@
 
     const nameInput = ref<HTMLInputElement|null>(null);
 
+    const classObject = reactive({
+        modal       : true,
+        'is-active' : true,
+        topModal    : props.control.displayed,
+    });
+
     // Release reference to the new player and set newPlayer to a new default object
     function getPlayer() : Player
     {
@@ -36,7 +42,7 @@
 </script>
 
 <template>
-    <div class="modal is-active">
+    <div :class="classObject">
         <div class="modal-background"></div>
         <div class="modal-card">
             <div class="modal-card-head">

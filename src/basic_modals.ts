@@ -1,13 +1,15 @@
 import { reactive } from "vue";
-import { ModalBase } from "./modal_base";
+import { IModalBase, ModalBase } from "./modal_base";
 
-interface IBasicModal {
+interface IBasicModal extends IModalBase{
     title : string,
     msg   : string,
-    show  : boolean,
     hide  : () => void
 };
 class BasicModal extends ModalBase implements IBasicModal {
+    constructor(name : string) {
+        super(name);
+    }
     title : string = "";
     msg   : string = "";
     hide() {
@@ -20,12 +22,16 @@ interface IAlert extends IBasicModal {
 };
 class AlertClass extends BasicModal implements IAlert {
     display(title : string, msg : string) {
+        if (this.show) {
+            console.log(`Double Alert, not showing '${msg}'`)
+            return;
+        }
         this.title = title;
         this.msg = msg;
         this.show = true;
     }
 };
-let alert = reactive(new AlertClass);
+let alert = reactive(new AlertClass("Alert"));
 function doAlert(title : string, msg : string) { alert.display(title, msg); }
 
 interface IConfirm extends IBasicModal {
@@ -35,16 +41,22 @@ interface IConfirm extends IBasicModal {
 class ConfirmClass extends BasicModal implements IConfirm {
     action : { (result : number) : void } = () => {};
     display(title : string, msg : string, action : { (result : number) : void }) {
-        this.title = title;
-        this.msg = msg;
-        this.action = (result : number) => {
-            this.show = false;
-            action(result);
+        if (this.show) {
+            console.log(`Double confirm, immediately failing for '${msg}'`);
+            action(0);
         }
-        this.show = true;
+        else {
+            this.title = title;
+            this.msg = msg;
+            this.action = (result : number) => {
+                this.show = false;
+                action(result);
+            }
+            this.show = true;
+        }
     }
 };
-let confirm = reactive(new ConfirmClass);
+let confirm = reactive(new ConfirmClass("Confirm"));
 function doConfirm(title : string, msg : string, action : { (result : number) : void }) { confirm.display(title, msg, action); }
 
 export { type IAlert, alert, doAlert, type IConfirm, confirm, doConfirm }
