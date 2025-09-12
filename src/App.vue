@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { ref, onMounted, computed, reactive } from 'vue'
-    import draggable from 'vuedraggable'
+    import draggable from 'vuedraggable-es'
     import NewsBar from './NewsBar.vue'
     import PlayerTile from './PlayerTile.vue'
     import SettingsModal from './SettingsModal.vue'
