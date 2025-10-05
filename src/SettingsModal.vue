@@ -62,6 +62,11 @@
                 </div>
                 <div class="field">
                     <div class="control">
+                        <label class="checkbox"><input type="checkbox" v-model="props.settings.avoidRepetition"> Spelherhaling voorkomen</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="control">
                         <label class="checkbox"><input type="checkbox" v-model="props.settings.levelSeparation"> Niveau-afhankelijke veldtoekenning</label>
                     </div>
                 </div>

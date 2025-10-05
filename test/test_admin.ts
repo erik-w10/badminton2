@@ -267,6 +267,38 @@ test('Mix mode releases on player login/out and pause/activate', ()=> {
     assert.deepEqual(courts, []);
 });
 
+test('Mix mode can be disabled', ()=> {
+    let storage = new TestStorage;
+    let admin = new Admin(2, storage);
+    admin.levelBasedCourtAssignment(false);
+    admin.avoidGameRepetition(false);       // <== Don't "mix more"
+
+    makeTestPlayers(admin);
+    assert.equal(admin.players.length, 50);
+    let add = ['1000', '2000', '3000', '4000' ];
+
+    add.forEach( (id) => {
+        let player = admin.players.find( p => p.playerId == id );
+        assert.ok(player);
+        admin.togglePlayerPresence(player);
+    });
+    assert.equal(admin.waiting.length, 4);
+
+    let courts : number[] = [];
+    admin.assignParticipants(nr => courts.push(nr));
+    assert.deepEqual(courts, [1]);
+    assert.equal(admin.waiting.length, 0);
+    admin.clearCourt(admin.courts[0]);
+    assert(!admin.mixMore);
+
+    courts = [];
+    admin.assignParticipants(nr => courts.push(nr));
+    assert.deepEqual(courts, [1]);
+    assert.equal(admin.waiting.length, 0);
+    admin.clearCourt(admin.courts[0]);
+    assert(!admin.mixMore);
+});
+
 test('Players storage', ()=> {
     let storage = new TestStorage;
     let admin = new Admin(2, storage);

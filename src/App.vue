@@ -20,6 +20,7 @@
         console.log('Starting');
         settings.reload();
         adm.levelBasedCourtAssignment(settings.levelSeparation);
+        adm.avoidGameRepetition(settings.avoidRepetition);
         showLevel.value = settings.levelIndication;
         adm.loadPlayers();
         window.myIpc.onPlayerAdmin(() => {
@@ -313,6 +314,7 @@
 
     function hideSettings() {
         adm.levelBasedCourtAssignment(settings.levelSeparation);
+        adm.avoidGameRepetition(settings.avoidRepetition);
         showLevel.value = settings.levelIndication;
         adm.playersToLocalStorage();
         markStateChange();

@@ -158,6 +158,8 @@ class Admin {
     xSelected = <null|Player>(null);
     /** Indication if the admin status can be reset to previous status ("undo" feature) */
     canUndo : boolean = false;
+    /** Mix more players when if a finished 4-player game would eventually be reassigned unchanged (settings option) */
+    avoidRepetition = true;
     /** The number of players is a multiple of 4 and the the last clear-court operation added 4 players to the end of the waiting list */
     mixMore : boolean = false;
     /** Encoded current admin status */
@@ -617,7 +619,7 @@ class Admin {
 
     addToWaiting(toAdd : Player[]) {
         if (toAdd.length < 1) return;
-        if ((this.waiting.length < 4) || (this.waiting.length % 4 != 0)) {
+        if ((this.waiting.length < 4) || (this.waiting.length % 4 != 0) || !this.avoidRepetition) {
             this.mixMore = false;
         }
         let mixPlayers : Player[] = [];
@@ -628,7 +630,7 @@ class Admin {
         let toInsert = toAdd.slice(0, 2);
         let toAppend = toAdd.slice(2);
         this.waiting = this.waiting.concat(toInsert).concat(mixPlayers).concat(toAppend);
-        if (this.mixMore) {
+        if (this.mixMore || !this.avoidRepetition) {
             this.mixMore = false;
         }
         else {
@@ -639,6 +641,11 @@ class Admin {
     /** Select the picker object appropriate for the selected field assignment strategy */
     levelBasedCourtAssignment(enable : boolean) {
         this.picker = new Picker(enable);
+    }
+
+    /** Select if we need to protect against the same set of 4 players continuously being recombined (if we should "mix more") */
+    avoidGameRepetition(enable : boolean) {
+        this.avoidRepetition = enable;
     }
 
     /** Try to fill the courts with participants

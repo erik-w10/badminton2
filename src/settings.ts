@@ -6,6 +6,7 @@ interface ISettings extends IModalBase {
     courtFlash :        boolean,
     messageBar :        boolean,
     newMessageEffect :  boolean,
+    avoidRepetition :   boolean,
     levelSeparation:    boolean,
     levelIndication:    boolean,
     barMessages :       string[],
@@ -16,6 +17,7 @@ class Settings extends ModalBase implements ISettings{
     courtFlash : boolean = false;
     messageBar : boolean = false;
     newMessageEffect : boolean = false;
+    avoidRepetition : boolean = true;
     levelSeparation: boolean = false;
     levelIndication: boolean = false;
     barMessages : string[] = [];
@@ -32,9 +34,11 @@ class Settings extends ModalBase implements ISettings{
                 return;
             }
             let oldSettings = JSON.parse(stringData);
+            console.log(`Old: ${stringData}`);
             if (typeof(oldSettings.courtFlash) == 'boolean') this.courtFlash = oldSettings.courtFlash;
             if (typeof(oldSettings.messageBar) == 'boolean') this.messageBar = oldSettings.messageBar;
             if (typeof(oldSettings.newMessageEffect) == 'boolean') this.newMessageEffect = oldSettings.newMessageEffect;
+            if (typeof(oldSettings.avoidRepetition) == 'boolean') this.avoidRepetition = oldSettings.avoidRepetition;
             if (typeof(oldSettings.levelSeparation) == 'boolean') this.levelSeparation = oldSettings.levelSeparation;
             if (typeof(oldSettings.levelIndication) == 'boolean') this.levelIndication = oldSettings.levelIndication;
             if (typeof(oldSettings.barMessages) == 'object' && typeof(this.barMessages.length) == 'number') this.barMessages = oldSettings.barMessages;
@@ -51,6 +55,7 @@ class Settings extends ModalBase implements ISettings{
             courtFlash       : this.courtFlash,
             messageBar       : this.messageBar,
             newMessageEffect : this.newMessageEffect,
+            avoidRepetition  : this.avoidRepetition,
             levelSeparation  : this.levelSeparation,
             levelIndication  : this.levelIndication,
             barMessages      : this.barMessages
