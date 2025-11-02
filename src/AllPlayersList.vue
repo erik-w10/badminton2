@@ -4,6 +4,7 @@
     import { doConfirm } from './basic_modals';
     import { type IModalBase, ModalBase } from './modal_base';
     import EditPlayerModal from './EditPlayerModal.vue';
+    import AdminListModal from './AdminListModal.vue';
     import { default as nfcCallbacks, NfcHandler } from './nfc_callbacks'
     import { KnownPlayer } from './player';
 
@@ -13,6 +14,7 @@
     const emits = defineEmits<{'closed': []}>();
 
     const editPlayerInfo = reactive(new ModalBase("edit player"));
+    const adminListInfo = reactive(new ModalBase("admin list"));
     const allowFocus = computed<number>(() => {
         return (props.control.displayed) ? 0 : -1;
     });
@@ -58,6 +60,14 @@
         if (playersJson !== null) window.myIpc.exportPlayers(playersJson);
     }
 
+    function doAdminList() {
+        adminListInfo.show = true;
+    }
+
+    function deleteDisableCheck(p : Player) {
+        return (adm.currentAdmin?.playerId === p.playerId);
+    }
+
     let oldNfcHandler : NfcHandler = null;
     let oldImportHandler : ImportEventHandler = null;
     onMounted(() => {
@@ -75,6 +85,7 @@
     onUnmounted(() => {
         nfcCallbacks.setNfcHandler(oldNfcHandler);
         adm.setImportEventHandler(oldImportHandler);
+        adm.currentAdmin = null;
     })
 </script>
 
@@ -83,23 +94,35 @@
         <div class="modal-background"></div>
         <div class="modal-card">
             <div class="modal-card-head">
-                <h3>Spelerslijst</h3>
-                <button @click="doExport" :tabindex="allowFocus">spelers exporteren</button>
-                <button @click="doImport" :tabindex="allowFocus">spelers importeren</button>
+                <div>
+                    <div>
+                        <h3 class="title">Spelerslijst</h3>
+                    </div>
+                </div>
             </div>
             <section class="modal-card-body">
                 <div class="list">
-                    <div style="overflow:hidden" class="list-item" :key="player.playerId" v-for="player in sortedPlayers">
-                        <b>{{player.name}}</b> ({{player.playerId}})
-                        <span style="float:right">
-                            <span @click="editPlayer(player)" class="button">bewerken</span>
-                            <span @click="askDeletePlayer(player)" class="button is-danger">verwijder</span>
-                        </span>
+                    <div class="list-item" :key="player.playerId" v-for="player in sortedPlayers">
+                        <div class="listColumns">
+                            <div class="listFlexColumn">
+                                <span><b>{{player.name}}</b> ({{player.playerId}})</span>
+                            </div>
+                            <div class="listButtonColumn">
+                                <button @click="editPlayer(player)" class="button">bewerk</button>
+                                <button @click="askDeletePlayer(player)" class="button is-danger" :disabled="deleteDisableCheck(player)">verwijder</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
+            <footer class="modal-card-foot">
+                <button class="card-footer-item button is-rounded is-link is-outlined" @click="doExport" :tabindex="allowFocus">spelers exporteren</button>
+                <button class="card-footer-item button is-rounded is-link is-outlined" @click="doImport" :tabindex="allowFocus">spelers importeren</button>
+                <button class="card-footer-item button is-rounded is-link is-outlined" @click="doAdminList" :tabindex="allowFocus">admin-lijst</button>
+            </footer>
         </div>
         <button @click="props.control.show=false; $emit('closed')" class="modal-close is-large" aria-label="close" :tabindex="allowFocus"></button>
     </div>
     <EditPlayerModal v-if=editPlayerInfo.show :control="editPlayerInfo" :player="editedInfo" @done="updatePlayer"/>
+    <AdminListModal v-if=adminListInfo.show :control="adminListInfo" />
 </template>

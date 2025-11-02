@@ -1,6 +1,7 @@
 <script setup lang="ts">
-    import { onMounted, ref, reactive } from 'vue';
+    import { onMounted, onUnmounted, ref, reactive } from 'vue';
     import { ISettings } from './settings';
+    import { default as adm } from './player_admin';
 
     let scratchMessages = ref("");
 
@@ -27,6 +28,10 @@
 
     onMounted(() => {
         scratchMessages.value = props.settings.barMessages.join('\n');
+    });
+
+    onUnmounted(() => {
+        adm.currentAdmin = null;
     });
 </script>
 

@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import { IMyIpc } from "./types/icp"
+import { IMyIpc } from "./types/ipc"
 
 declare global {
     interface Window {

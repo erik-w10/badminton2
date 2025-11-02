@@ -15,7 +15,7 @@ class ModalBase implements IModalBase {
     private _show : boolean = false;
     set show(x : boolean) {
         if (x === this._show) {
-            console.log(`Modal ${this.name} is alrealy shown ${x ? 'shown' : 'hidden'}`);
+            console.log(`Modal ${this.name} is already ${x ? 'shown' : 'hidden'}`);
         }
         else {
             this._show = x;

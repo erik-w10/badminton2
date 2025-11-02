@@ -9,7 +9,7 @@ enum UndoOption {
     Keep
 }
 
-const storageNames = { players: "participants", state: "state", oldState: "old_state" };
+const storageNames = { players: "participants", state: "state", oldState: "old_state", admins: "admins" };
 
 interface PlayerLookup {
     [key : string] : Player;
@@ -111,6 +111,7 @@ interface IAdminStorage {
     players  : string|null;
     state    : string|null;
     oldState : string|null;
+    admins   : string|null;
 }
 
 class AdminStorage implements IAdminStorage {
@@ -137,6 +138,14 @@ class AdminStorage implements IAdminStorage {
     {
         localStorage.setItem(storageNames.oldState, value);
     }
+
+    get admins() : string|null {
+        return localStorage.getItem(storageNames.admins);
+    }
+    set admins (value : string)
+    {
+        localStorage.setItem(storageNames.admins, value);
+    }
 }
 
 type ImportEventHandler = (() => void) | null;
@@ -154,6 +163,10 @@ class Admin {
     /** Player links. Format: an entry is null (not used) or [ player1, player2 ] i.e. references to both players structures
         The array index + 1 is stored in the player `link` field and corresponds to a tag character (a digit in a circle starting at (1)) */
     playerLinks : (Player[] | null)[] = [];
+    /** Collection of players (in players[]) that have administrative rights.  If this list is empty admin checks are turned off */
+    admins : Player[] = [];
+    /** Current admin if within an operation that requires admin rights or null */
+    currentAdmin : Player|null = null;
     /** The first player selected in a linking operation, else null */
     xSelected = <null|Player>(null);
     /** Indication if the admin status can be reset to previous status ("undo" feature) */
@@ -261,12 +274,83 @@ class Admin {
         this.countLevels();
     }
 
-    /** Store the list of know players in persisted storage */
+    /** Store the list of known players in persisted storage */
     playersToLocalStorage()
     {
         let r : KnownPlayer[] = [];
         this.players.forEach( p => r.push(p.identity()));
         this.storage.players = JSON.stringify(r);
+    }
+
+    /** Load admins from persisted storage */
+    loadAdmins()
+    {
+        if (!this.storage.admins) {
+            this.storage.admins = "[]";
+        }
+        let readIn : any[] = [];
+        let newAdmins : Player[] = [];
+        try {
+            readIn = JSON.parse(this.storage.admins as string);
+            readIn.forEach( id => {
+                if (typeof(id) !== 'string') throw new Error('Non-string in admin list');
+                let a = this.players.find(p => id === p.playerId);
+                if (a === undefined) {
+                    console.log(`Admin ${id} not found`);
+                }
+                else {
+                    newAdmins.push(a);
+                }
+            });
+            this.admins = newAdmins;
+        }
+        catch (error : any) {
+            console.log(`Error decoding admins list from local storage '${error}'`);
+            readIn = [];
+        }
+    }
+
+    /** Store the list of admins in persisted storage */
+    adminsToLocalStorage()
+    {
+        let adminIds : string[] = [];
+        this.admins.forEach( a => adminIds.push(a.playerId));
+        this.storage.admins = JSON.stringify(adminIds);
+    }
+
+    isAdmin(id : string) : boolean
+    {
+        return this.admins.find( (p) =>  p.playerId === id ) !== undefined;
+    }
+
+    trySetCurrentAdmin(id : string) : boolean
+    {
+        let a = this.admins.find( (p) =>  p.playerId === id );
+        if (a === undefined) {
+            this.currentAdmin = null;
+            return false;
+        }
+        this.currentAdmin = a;
+        return true;
+    }
+
+    /** Set admin rights (on or off).
+     * @param   id  Player ID of the player to set/reset admin rights of
+     * @param   on  Select weather to enable (true) of disable (false) admin rights
+     * @returns True if successful, false id is not a valid/existing player ID
+     */
+    setAdmin(id : string, on : boolean) : boolean
+    {
+        console.log(`setAdmin(${id}, ${on})`);
+        let p = this.players.find( (p) => p.playerId === id )
+        if (p === undefined) return false;
+
+        let a = this.admins.filter((e) => e.playerId !== id );
+        if (on) a.push(p);
+        this.admins = a;
+        console.log(`setAdmin: admins length = ${this.admins.length})`);
+
+        return true;
     }
 
     /** Install an imported data callback */
@@ -332,6 +416,7 @@ class Admin {
         player.level    = newInfo.level;
         player.gender   = newInfo.gender;
         this.playersToLocalStorage();
+        this.adminsToLocalStorage();
         this.countLevels();
     }
 

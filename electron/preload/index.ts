@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('myIpc', {
   exportPlayers:    (jsonText) => ipcRenderer.send('export-players', jsonText),
   importPlayers:    ()         => ipcRenderer.send('import-players'),
+  showDevTools:     ()         => ipcRenderer.send('show-dev-tools'),
   onImportData:     (callback) => ipcRenderer.on('import-data', callback),
   onPlayerAdmin:    (callback) => ipcRenderer.on('player-admin', callback),
   onRestoreSession: (callback) => ipcRenderer.on('restore-session', callback),
@@ -10,4 +11,5 @@ contextBridge.exposeInMainWorld('myIpc', {
   onNfcCard:        (callback) => ipcRenderer.on('nfc-card', callback),
   onNfcError:       (callback) => ipcRenderer.on('nfc-error', callback),
   onFieldImage:     (callback) => ipcRenderer.on('field-image', callback),
+  onOptions:        (callback) => ipcRenderer.once('set-options', callback),
 })

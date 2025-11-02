@@ -15,9 +15,18 @@ export interface VoidCallback {
     () : void
 }
 
+interface ProgOptions {
+    noAdmin : boolean,
+};
+
+export interface OptionsCallback {
+    (evt: Event, noAdmin : ProgOptions) : void
+}
+
 export interface IMyIpc {
     exportPlayers:      (jsonText : string) => void,
     importPlayers:      () => void,
+    showDevTools:       () => void,
     onImportData:       (callback : EventDataCallback) => void,
     onPlayerAdmin:      (callback : VoidCallback) => void,
     onRestoreSession:   (callback : VoidCallback) => void,
@@ -25,5 +34,6 @@ export interface IMyIpc {
     onNfcCard:          (callback : EventStringCallback) => void,
     onNfcError:         (callback : EventStringCallback) => void,
     onFieldImage:       (callback : FieldImageCallback) => void,
+    onOptions:          (callback : OptionsCallback) => void,
 }
 

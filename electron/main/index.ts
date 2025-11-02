@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { setNfcCardHandler, setNfcErrorHandler } from './nfc'
 import { setImportDataHandler, exportPlayers, importPlayers } from "./players_io"
 import { loadFieldImage, setImageHandler } from "./load_image"
+import { ProgOptions } from "../../src/types/ipc"
 
 
 // The built directory structure
@@ -32,6 +33,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 }
+
+const progOptions : ProgOptions = {
+  noAdmin : (process.argv.find((a) => a === "--no-admin") !== undefined),
+};
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -72,12 +77,6 @@ function installApplicationMenu(win : BrowserWindow) : void {
                         win.webContents.send('show-settings');
                     }
                 },
-                {
-                    label:'Dev-tools',
-                    click() {
-                        win.webContents.openDevTools()
-                    }
-                },
             ]
         }
     ])
@@ -93,12 +92,13 @@ async function createWindow() {
         },
     })
 
-    ipcMain.on('export-players', exportPlayers)
-    ipcMain.on('import-players', importPlayers)
+    ipcMain.on('export-players', exportPlayers);
+    ipcMain.on('import-players', importPlayers);
+    ipcMain.on('show-dev-tools', (e) => win.webContents.openDevTools());
 
     installApplicationMenu(win);
 
-    setNfcCardHandler(   (uid)            => win.webContents.send('nfc-card', uid))     // Note asuming here there is only ever one window...
+    setNfcCardHandler(   (uid)            => win.webContents.send('nfc-card', uid))     // Note assuming here there is only ever one window...
     setNfcErrorHandler(  (msg)            => win.webContents.send('nfc-error', msg))
     setImportDataHandler((data)           => win.webContents.send('import-data', data))
     setImageHandler(     (data, mimeType) => win.webContents.send('field-image', data, mimeType))
@@ -119,7 +119,11 @@ async function createWindow() {
         win.loadFile(indexHtml)
     }
     
-    win.webContents.on('did-finish-load', loadFieldImage)
+    win.webContents.on('did-finish-load', async () => {
+        win.webContents.send('set-options', progOptions);
+        loadFieldImage();
+      }
+    )
     
     // Make all links open with the browser, not with the application TODO remove?
     win.webContents.setWindowOpenHandler(({ url }) => {

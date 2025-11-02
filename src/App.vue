@@ -8,12 +8,19 @@
     import AlertModal from './AlertModal.vue'
     import ConfirmModal from './ConfirmModal.vue'
     import AllPlayersListModal from './AllPlayersList.vue'
+    import AdminTestModal from "./AdminTestModal.vue"
     import { ModalBase } from './modal_base'
     import {default as adm, type Player, type Court, UndoOption} from './player_admin'
     import { settings } from './settings'
     import { alert, doAlert, confirm, doConfirm } from './basic_modals'
     import { anyModals } from './modal_base'
     import { default as nfcCallbacks } from './nfc_callbacks'
+    import { ProgOptions } from "./types/ipc"
+    import { disableAdminTest, doAdminTest, admin_test } from "./admin_test"
+
+    let progOptions : ProgOptions = {
+         noAdmin : false
+    };
 
     // when application starts
     onMounted(() => {
@@ -23,10 +30,14 @@
         adm.avoidGameRepetition(settings.avoidRepetition);
         showLevel.value = settings.levelIndication;
         adm.loadPlayers();
+        adm.loadAdmins();
         window.myIpc.onPlayerAdmin(() => {
             if (ModalBase.modalsActive()) return;
-            allPlayersList.show = true;
             stopTimer()
+            doAdminTest( (success : boolean) => {
+                if (success) allPlayersList.show = true;
+                else startTimer();
+            })
         })
         window.myIpc.onRestoreSession(() => {
             if (ModalBase.modalsActive()) return;
@@ -40,8 +51,11 @@
         })
         window.myIpc.onShowSettings(() => {
             if (ModalBase.modalsActive()) return;
-            settings.show = true
             stopTimer()
+            doAdminTest( (success : boolean) => {
+                if (success) settings.show = true;
+                else startTimer();
+            })
         })
 
         nfcCallbacks.setNfcHandler((uid : string) => {
@@ -77,7 +91,14 @@
                 }
             }
         })
-        startTimer()
+        window.myIpc.onOptions((_event : Event, prgOpts : ProgOptions) => {
+            progOptions = prgOpts;
+            if (prgOpts.noAdmin) disableAdminTest();
+        })
+        window.addEventListener("keydown", (e) => {
+            if ((e.key == "F12") && (e.ctrlKey == true) && (e.altKey == false)) window.myIpc.showDevTools();
+        });
+        startTimer();
     })
 
     // the used 'ingredients' for the application
@@ -430,6 +451,7 @@
     <SettingsModal v-if=settings.show :settings="settings" @close="hideSettings()"/>
     <ConfirmModal v-if=confirm.show :data="confirm" />
     <AlertModal v-if=alert.show :data="alert" />
+    <AdminTestModal v-if="admin_test.show" :data="admin_test" />
 </template>
 
 
@@ -646,5 +668,19 @@
     .topModal {
         z-index: 100;
     }
-
+    div.listColumns {
+        display: flex;
+        flex-direction: row;
+    }
+    div.listFlexColumn {
+        flex: 0 1 100%;
+        display: flex;
+        align-items: center;
+    }
+    div.listButtonColumn {
+        flex: 1 0 1%;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+    }
 </style>
